@@ -74,7 +74,7 @@ export default {
   },
 };
 
-/** Non-hibernating WebSockets keep a one-minute authoritative match resident. */
+/** Non-hibernating WebSockets keep a three-round authoritative match resident. */
 export class Lobby {
   constructor(ctx) {
     this.ctx = ctx;
@@ -179,9 +179,12 @@ export class Lobby {
   startTicking() {
     if (this.timer) return;
     this.timer = setInterval(() => {
-      const active = ['playing', 'countdown', 'paused'].includes(
-        this.room.game.phase,
-      );
+      const active = [
+        'playing',
+        'countdown',
+        'intermission',
+        'paused',
+      ].includes(this.room.game.phase);
       const events = this.room.tick(Date.now());
       if (active || events.length) this.broadcast(events);
     }, 50);

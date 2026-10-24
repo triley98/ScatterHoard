@@ -531,9 +531,9 @@ export class ForestScene {
   }
 
   onEvent(event) {
-    // Digging never changes the surface or leaves a marker, including during a corvid theft.
+    // Digging never changes the surface or leaves a marker, including during a crow theft.
     if (this.reducedMotion) return;
-    if (event.type !== 'powerup' || !event.kind.includes('corvid')) return;
+    if (event.type !== 'powerup' || !event.kind.includes('crow')) return;
     const root = new THREE.Group();
     const feather = material(0x26312d);
     mesh(geometries.sphere, feather, [0, 0, 0], [0.35, 0.22, 0.65], root);
@@ -641,7 +641,7 @@ export class ForestScene {
         this.acornMeshes.set(acorn.id, object);
         this.scene.add(object);
       }
-      const age = game.elapsed - acorn.born;
+      const age = game.matchElapsed - acorn.born;
       object.children[0].position.y =
         0.17 +
         (animate ? Math.sin(time * 2 + acorn.id) * 0.06 : 0) +
@@ -680,5 +680,27 @@ export class ForestScene {
       }
     }
     this.renderer.render(this.scene, this.camera);
+  }
+
+  projectPlayer(id) {
+    const position = this.squirrels[id].root.position.clone();
+    position.y += 2.85;
+    position.project(this.camera);
+    return {
+      x: Math.max(
+        28,
+        Math.min(
+          this.canvas.clientWidth - 28,
+          ((position.x + 1) * this.canvas.clientWidth) / 2,
+        ),
+      ),
+      y: Math.max(
+        52,
+        Math.min(
+          this.canvas.clientHeight - 15,
+          ((1 - position.y) * this.canvas.clientHeight) / 2,
+        ),
+      ),
+    };
   }
 }

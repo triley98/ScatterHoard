@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+test.use({ deviceScaleFactor: 0.5 });
+
 async function advance(page, milliseconds) {
   // Each RAF sees <= 200ms, keeping the app's normal long-frame guard in effect.
   for (let remaining = milliseconds; remaining > 0; remaining -= 200) {
@@ -10,7 +12,8 @@ async function advance(page, milliseconds) {
 test('a real browser can render, collect, bury, pause, finish, and rematch', async ({
   page,
 }) => {
-  test.setTimeout(180000);
+  test.setTimeout(300000);
+  await page.setViewportSize({ width: 1000, height: 850 });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript(() => {
@@ -34,7 +37,7 @@ test('a real browser can render, collect, bury, pause, finish, and rematch', asy
   await expect(page.locator('#countdown-overlay')).toBeVisible();
   await advance(page, 3200);
   await expect(page.locator('#countdown-overlay')).toBeHidden();
-  await expect(page.locator('#clock-caption')).toHaveText('1 of 12 drops');
+  await expect(page.locator('#clock-caption')).toHaveText('1 of 36 drops');
 
   // The deterministic first drop is (10.5, 2.9), near Red's (8.5, 5.5).
   await page.keyboard.down('w');
@@ -51,6 +54,16 @@ test('a real browser can render, collect, bury, pause, finish, and rematch', asy
   await advance(page, 600);
   await expect(page.locator('#red-score')).toHaveText('1');
   await expect(page.locator('#red-carry')).toHaveText('Paws empty');
+  await page.keyboard.press('Space');
+  await advance(page, 700);
+  await expect(page.locator('#red-score')).toHaveText('0');
+  await expect(page.locator('#red-carry')).toHaveText('Acorn in paws');
+  await expect(
+    page.locator('.squirrel-badges[data-player="0"] [data-icon="acorn"]'),
+  ).toHaveAccessibleName('Red dug up an acorn.');
+  await page.keyboard.press('Space');
+  await advance(page, 700);
+  await expect(page.locator('#red-score')).toHaveText('1');
   // Move Red away so the next acorn is available for Ash to collect.
   await page.keyboard.down('a');
   await advance(page, 500);
@@ -70,7 +83,9 @@ test('a real browser can render, collect, bury, pause, finish, and rematch', asy
   await page.keyboard.press('Enter');
   await advance(page, 700);
   await expect(page.locator('#grey-carry')).toHaveText('Acorn in paws');
-  await expect(page.locator('#arena-message')).toContainText('Couldn’t bury');
+  await expect(
+    page.locator('.squirrel-badges[data-player="1"] [data-icon="blocked"]'),
+  ).toBeVisible();
   await page.keyboard.down('ArrowRight');
   await advance(page, 240);
   await page.keyboard.up('ArrowRight');
@@ -95,12 +110,22 @@ test('a real browser can render, collect, bury, pause, finish, and rematch', asy
   await page.keyboard.press('Escape');
   await expect(page.locator('#help-dialog')).toBeHidden();
 
+  // All three rounds share the same board; only the third opens match results.
   await advance(page, 60000);
+  await expect(page.locator('#round-label')).toHaveText('ROUND 2 OF 3');
+  await expect(page.locator('#red-score')).toHaveText('2');
+  await expect(page.locator('#results-dialog')).toBeHidden();
+  await advance(page, 63000);
+  await expect(page.locator('#round-label')).toHaveText('ROUND 3 OF 3');
+  await expect(page.locator('#red-score')).toHaveText('2');
+  await expect(page.locator('#results-dialog')).toBeHidden();
+  await advance(page, 63000);
   await expect(page.locator('#clock')).toHaveText('00:00');
   await expect(page.locator('#results-dialog')).toBeVisible();
   await expect(page.locator('#results-title')).toContainText('Red takes');
-  await expect(page.locator('#results-detail')).toContainText('12 dropped');
-  await page.getByRole('button', { name: 'One more round' }).click();
+  await expect(page.locator('#results-detail')).toContainText('36 dropped');
+  await expect(page.locator('#results-rounds > div')).toHaveCount(3);
+  await page.getByRole('button', { name: 'One more match' }).click();
   await advance(page, 3200);
   await expect(page.locator('#red-score')).toHaveText('0');
   await expect(page.locator('#grey-score')).toHaveText('0');

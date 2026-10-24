@@ -64,10 +64,16 @@ test('two separate browsers host, join, synchronize movement, reconnect, and kee
       .poll(() => guestStates.at(-1)?.players[0].x, { timeout: 6000 })
       .toBeGreaterThan(x + 1);
     await host.keyboard.up('d');
-    await expect.poll(() => hostStates.at(-1)?.players[0].vx).toBe(0);
     await expect
-      .poll(() => guestStates.at(-1)?.players[0].x)
-      .toBe(hostStates.at(-1).players[0].x);
+      .poll(() => hostStates.at(-1)?.players[0].x)
+      .toBeGreaterThan(x + 1);
+    await expect
+      .poll(() => {
+        const h = hostStates.at(-1)?.players[0],
+          g = guestStates.at(-1)?.players[0];
+        return h?.vx === 0 && g?.vx === 0 && Math.abs(h.x - g.x) < 1e-6;
+      })
+      .toBe(true);
     expect(hostStates.at(-1).players[1].x).toBe(31.5);
 
     // Arrow controls operate the assigned grey squirrel on the second device.
@@ -113,7 +119,7 @@ test('two separate browsers host, join, synchronize movement, reconnect, and kee
   }
 });
 
-test('searching empty-handed shows the powerup name and its effect', async ({
+test('searching empty-handed shows an octagonal acorn rain badge above the finder', async ({
   page,
 }) => {
   test.setTimeout(30000);
@@ -129,10 +135,15 @@ test('searching empty-handed shows the powerup name and its effect', async ({
   await page.clock.fastForward(100);
   await expect(page.locator('#red-carry')).toHaveText('Searching…');
   for (let i = 0; i < 4; i++) await page.clock.fastForward(200);
-  await expect(page.locator('#powerup-notice')).toBeVisible();
-  await expect(page.locator('#powerup-title')).toContainText('Acorn rain');
-  await expect(page.locator('#powerup-description')).toContainText(
-    'Three extra acorns',
+  const badge = page.locator(
+    '.squirrel-badges[data-player="0"] [data-icon="acorn-rain"]',
   );
+  await expect(badge).toBeVisible();
+  await expect(badge).toHaveAccessibleName(/Three extra acorns/);
+  expect(await badge.evaluate((el) => getComputedStyle(el).clipPath)).toContain(
+    'polygon',
+  );
+  await expect(page.locator('#powerup-notice')).toHaveCount(0);
+  await expect(page.locator('#arena-message')).toHaveCount(0);
   await expect(page.locator('#clock-caption')).toContainText('+ 3 bonus');
 });

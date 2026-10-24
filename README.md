@@ -1,6 +1,6 @@
 # ScatterHoard
 
-Two squirrels, a hidden stash, and one busy minute. A browser game with smooth movement across a 40 × 10 clearing viewed at 45 degrees. Red starts on the left; Ash, the grey squirrel, starts on the right.
+Two squirrels, a hidden stash, and three busy rounds. A browser game with smooth movement across a 40 × 10 clearing viewed at 45 degrees. Red starts on the left; Ash, the grey squirrel, starts on the right.
 
 Play together on one keyboard, or host an online room on Cloudflare and share its six-character code. Online matches use a server-authoritative Durable Object and WebSockets, with a maximum of two players. Hidden burial locations never appear in client snapshots or events.
 
@@ -18,23 +18,23 @@ If using the GitHub Pages frontend with a separate Cloudflare lobby, expand **Lo
 ## Rules
 
 - Movement is continuous and independent of the invisible 40-column, 10-row grid. There are no visible grid lines, cell outlines, dirt piles, sprouts, or other burial markers. Remember where the squirrels dig.
-- Each round lasts 60 seconds after a three-second countdown. One acorn drops immediately, then every five seconds through second 55: 12 regular acorns. Powerups can add bonus acorns.
+- Each match has **three 60-second rounds**, with a three-second countdown before the match and between rounds. Buried acorns, loose acorns, carried inventory, positions, scores, and any remaining speed effect carry between rounds. One acorn drops at the start of each round, then every five seconds through second 55: **12 regular drops per round, 36 per match**, plus powerup bonuses. The timer resets each round; the board does not. The winner is decided by the final board after round three, rather than adding the three score snapshots together.
 - Walk over an acorn to pick it up. Each squirrel carries one at a time.
 - **Dig while carrying** to bury your acorn in the hidden cell beneath you. Stay still for 0.55 seconds; moving cancels digging and keeps your acorn. A cell holds one buried acorn. Attempting to bury in an occupied cell takes a complete dig, fails, and keeps the carried acorn. Nothing highlights an occupied location in advance.
-- **Dig empty-handed** to search the hidden cell. If an opponent planted an acorn there, it moves into your paws and its old territory loses a point. Take it home and bury it to score for your half. You cannot excavate your own planted acorns.
+- **Dig empty-handed** to search the hidden cell. Any buried acorn moves into your paws, **including your own**, and its old territory loses a point. Carry it to a new hiding spot and rebury it to score for that half.
 - Every completed empty-handed search independently has a **10% powerup chance**, including searches that uncover an acorn. Cancelled digs and burials do not roll. Each of the five outcomes is equally likely when a powerup is found:
 
-| Outcome             | Effect                                                       |
-| ------------------- | ------------------------------------------------------------ |
-| Acorn rain          | Three extra acorns drop on the finder's side.                |
-| Fleet paws          | 1.6× movement speed for six seconds.                         |
-| A corvid accomplice | A corvid steals one buried acorn from the opponent's half.   |
-| Heavy paws          | 0.6× movement speed for six seconds.                         |
-| A hungry corvid     | A corvid steals one buried acorn from the finder's own half. |
+| Outcome           | Effect                                                     |
+| ----------------- | ---------------------------------------------------------- |
+| Acorn rain        | Three extra acorns drop on the finder's side.              |
+| Fast feet        | 1.6× movement speed for six seconds.                       |
+| A crow accomplice | A crow steals one buried acorn from the opponent's half.   |
+| Slow feet        | 0.6× movement speed for six seconds.                       |
+| A hungry crow     | A crow steals one buried acorn from the finder's own half. |
 
-Powerups show a notification naming the finder and the outcome. Speed effects show their remaining time beside the player and replace an existing speed effect instead of stacking. A corvid only removes an acorn if its target half has one; otherwise the notification reports that it found nothing. Its decorative swoop does not reveal a burial location.
+**Octagonal icon badges pop up above the squirrel’s head instead of gameplay message popups.** An acorn means an acorn was picked up or dug up; a turtle means Slow feet; winged feet mean Fast feet; a crow means either crow powerup; and an acorn with a down arrow and 3 means three extra acorns. Helpful effects use a green rim; harmful effects use a rust rim. Crow badges also carry a + or −. Temporary speed badges remain for the effect duration with a draining rim; other badges last three seconds. Badges track the rendered squirrel as it moves, have accessible descriptions, and leave no marks on the ground. A small shovel/check, search/question, or cross badge provides feedback for burying, empty searches, or blocked digs. The help dialog includes an icon guide. Speed effects show remaining time in the HUD and replace each other instead of stacking. A crow only removes an acorn if its target half has one; its decorative swoop never reveals the cell.
 
-Location determines the score: columns 1–20 score for Red and 21–40 for Ash, regardless of who planted the acorn. Most buried at time-up wins; equal scores draw.
+Location determines the score: columns 1–20 score for Red and 21–40 for Ash, regardless of who planted the acorn. Most buried after the third round wins; equal scores draw. The results screen shows the cumulative board score at each round’s end. Only a new match clears the board.
 
 Local play pauses with Esc, Pause, opening help, or leaving the tab. Online menus and background tabs do not pause the other player. A network disconnection pauses the shared match for up to 30 seconds while that player's browser reconnects with its private session ticket. After that, the round resets and both players can ready up again. Rooms expire after 15 minutes. Deploying a new Worker or a platform restart can reset an active match; rooms are intended for short games, not permanent storage.
 
@@ -56,7 +56,7 @@ npm run deploy:check # Build and bundle the Cloudflare deployment without publis
 npm run test:e2e     # Local gameplay and two isolated online browser sessions
 ```
 
-Playwright starts Vite and the local Worker if needed. It uses `/usr/bin/chromium` in this cloud environment; set `CHROMIUM_PATH` if Chromium is elsewhere. It checks pickup/burial, occupied cells, the full round and rematch, UI powerup notifications, mobile layout, sound controls, online hosting/joining, synchronized movement, reconnect, and private snapshots. Software WebGL flags support CI without a GPU.
+Playwright starts Vite and the local Worker if needed. It uses `/usr/bin/chromium` in this cloud environment; set `CHROMIUM_PATH` if Chromium is elsewhere. It checks pickup/burial, occupied cells, the full three-round match and rematch, all five octagonal powerup icons and their overhead positions, mobile layout, sound controls, online hosting/joining, synchronized movement, reconnect, and private snapshots. Software WebGL flags support CI without a GPU.
 
 ## Deploy the Cloudflare website and lobby
 
@@ -83,8 +83,9 @@ The separate **Deploy ScatterHoard website** workflow tests, builds, and publish
 ## Project layout
 
 - `src/game.js` — shared authoritative rules; private burial map and safe public snapshots.
-- `src/scene.js` — unmarked clearing, squirrels, dense forest, and corvid swoops.
-- `src/main.js` — local/online lifecycle, input, lobby interface, HUD, and notifications.
+- `src/scene.js` — unmarked clearing, squirrels, dense forest, and crow swoops.
+- `src/main.js` — local/online three-round lifecycle, input, lobby interface, and HUD.
+- `src/badges.js` — octagonal SVG icon badges, accessible descriptions, timed effects, and head tracking.
 - `src/online.js` — room connection, private per-browser tickets, invite codes, and reconnect.
 - `src/audio.js`, `src/style.css` — sound and responsive interface with bundled fonts.
 - `server/room.js` — deterministic two-seat room, readiness, countdown, disconnect, and input validation.

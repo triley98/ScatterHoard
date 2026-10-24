@@ -46,7 +46,7 @@ export class MatchRoom {
     this.connected[slot] = false;
     this.ready[slot] = false;
     this.inputs[slot] = emptyInput();
-    if (['playing', 'countdown'].includes(this.game.phase)) {
+    if (['playing', 'countdown', 'intermission'].includes(this.game.phase)) {
       this.resumePhase = this.game.phase;
       this.game.phase = 'paused';
       this.disconnectedAt = now;
@@ -99,7 +99,7 @@ export class MatchRoom {
     if (this.game.phase === 'countdown') {
       this.countdown = Math.max(0, this.countdown - dt);
       if (!this.countdown) this.game.start();
-    } else if (this.game.phase === 'playing') {
+    } else if (['playing', 'intermission'].includes(this.game.phase)) {
       this.game.update(
         dt,
         this.inputs.map((input) =>

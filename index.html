@@ -46,8 +46,9 @@
             <p>Collect a little. Bury a lot. Settle it in the clearing.</p>
           </div>
           <div class="round-facts">
-            <span><b>02</b> SQUIRRELS</span><i></i><span><b>60</b> SECONDS</span
-            ><i></i><span><b>01</b> WINNER</span>
+            <span><b>02</b> SQUIRRELS</span><i></i><span><b>03</b> ROUNDS</span
+            ><i></i><span><b>60</b> SECONDS EACH</span><i></i
+            ><span><b>01</b> WINNER</span>
           </div>
         </section>
 
@@ -90,9 +91,16 @@
               </div>
             </div>
             <div class="clock-block">
-              <span class="round-label" id="round-label"
-                >YOUR NEXT WOODLAND RIVALRY</span
+              <div
+                id="round-progress"
+                class="round-progress"
+                aria-label="Three rounds"
               >
+                <span class="current" aria-label="Round 1"></span
+                ><span aria-label="Round 2"></span
+                ><span aria-label="Round 3"></span>
+              </div>
+              <span class="round-label" id="round-label">ROUND 1 OF 3</span>
               <div
                 class="clock"
                 id="clock"
@@ -103,7 +111,7 @@
               </div>
               <div class="clock-caption">
                 <span id="clock-status-dot"></span
-                ><span id="clock-caption">A one-minute scramble</span>
+                ><span id="clock-caption">Three one-minute rounds</span>
               </div>
             </div>
             <div class="player-score grey-score">
@@ -123,16 +131,13 @@
           </div>
 
           <div class="arena" id="arena">
-            <aside
-              class="powerup-notice"
-              id="powerup-notice"
-              role="status"
+            <div id="player-badges" class="badge-layer"></div>
+            <div
+              id="game-announcements"
+              class="sr-only"
               aria-live="polite"
-              hidden
-            >
-              <strong id="powerup-title"></strong
-              ><span id="powerup-description"></span>
-            </aside>
+              aria-atomic="true"
+            ></div>
             <canvas
               id="game-canvas"
               tabindex="0"
@@ -153,13 +158,8 @@
             <div class="territory-label territory-grey">
               ASH’S PATCH <span></span>
             </div>
-            <div
-              class="arena-message"
-              id="arena-message"
-              aria-live="polite"
-            ></div>
             <div class="countdown-overlay" id="countdown-overlay" hidden>
-              <span>PAWS AT THE READY</span
+              <span id="countdown-label">ROUND 1 OF 3 · PAWS AT THE READY</span
               ><strong id="countdown-number">3</strong>
             </div>
             <div class="renderer-error" id="renderer-error" hidden>
@@ -183,9 +183,10 @@
               <span class="toolbar-spark" aria-hidden="true">✳</span>
               <div>
                 <strong id="toolbar-title"
-                  >A little hustle. A lot of hoarding.</strong
+                  >Three rounds. A whole lot of hoarding.</strong
                 ><span id="toolbar-subtitle"
-                  >Bring a friend. The forest will keep score.</span
+                  >One clearing, three minutes. Every hiding spot carries
+                  over.</span
                 >
               </div>
             </div>
@@ -259,7 +260,7 @@
             <span class="eyebrow">THE SHORT VERSION</span>
             <p>
               Bury acorns on your half and remember your hiding spots. Dig
-              empty-handed to steal an opponent’s stash — or uncover a surprise.
+              empty-handed to steal any stash — or uncover a surprise.
             </p>
             <span class="rule-footnote"
               >Hidden stashes. A 10% powerup chance on every search.</span
@@ -378,9 +379,9 @@
         <div>
           <span>03</span>
           <p>
-            <strong>Guess. Dig. Steal.</strong> Dig with empty paws to search.
-            Find an opponent’s buried acorn, carry it home, and bury it again.
-            Their patch loses a point as soon as it’s dug up.
+            <strong>Guess. Dig. Recover.</strong> Dig with empty paws to search.
+            Find any buried acorn, including your own, carry it home, and bury
+            it again. Its old patch loses a point as soon as it’s dug up.
           </p>
         </div>
         <div>
@@ -388,16 +389,24 @@
           <p>
             <strong>The forest has surprises.</strong> Every completed search
             has a 10% powerup chance: three extra acorns, six seconds of speed,
-            a helpful corvid, six seconds of slowdown, or a corvid stealing from
+            a helpful crow, six seconds of slowdown, or a crow stealing from
             your own patch.
           </p>
         </div>
       </div>
+      <div class="badge-legend" aria-label="Badge guide">
+        <span><i data-legend-icon="acorn"></i>Acorn found</span>
+        <span><i data-legend-icon="turtle"></i>Slow feet · 6s</span>
+        <span><i data-legend-icon="winged-feet"></i>Fast feet · 6s</span>
+        <span><i data-legend-icon="crow"></i>Crow · + helpful / − harmful</span>
+        <span><i data-legend-icon="acorn-rain"></i>3 extra acorns</span>
+      </div>
       <div class="help-note">
-        A corvid steals one acorn from the chosen patch if it can find one.
-        Movement cancels digging. Most acorns on your half after 60 seconds
-        wins; ties draw. Online rounds keep going while you open menus. Both
-        players must be ready for a round or rematch.
+        A crow steals one acorn from the chosen patch if it can find one.
+        Movement cancels digging. The same board carries across three one-minute
+        rounds. Most acorns on your half after round three wins; ties draw.
+        Online matches keep going while menus are open. Both players ready up
+        for a new match; rounds two and three start automatically.
       </div>
       <button class="primary-button dialog-primary" data-close="help-dialog">
         Got it. Let’s go.
@@ -432,7 +441,7 @@
           <path d="M5 15 15 5M5 5h10v10" />
         </svg></button
       ><button class="text-button dialog-secondary" id="pause-restart-button">
-        Start a fresh round
+        Start a fresh match
       </button>
     </dialog>
     <dialog id="results-dialog" aria-labelledby="results-title">
@@ -451,9 +460,14 @@
           <strong id="result-grey">0</strong>
         </div>
       </div>
+      <div
+        id="results-rounds"
+        class="results-rounds"
+        aria-label="Scores after each round"
+      ></div>
       <p class="results-detail" id="results-detail"></p>
       <button class="primary-button dialog-primary" id="rematch-button">
-        One more round
+        One more match
         <svg
           aria-hidden="true"
           viewBox="0 0 20 20"

@@ -93,7 +93,7 @@ test('a 30-second reconnect timeout resets the round; both players can ready for
   room.setReady(1);
   room.tick(38001);
   assert.equal(room.game.phase, 'playing');
-  room.tick(98001);
+  room.tick(224001);
   assert.equal(room.game.phase, 'finished');
   room.setReady(0);
   assert.equal(room.game.phase, 'finished');
@@ -112,4 +112,30 @@ test('returning after both sockets were offline still enforces the reconnect dea
   room.join('guest-secret', () => '', 35001);
   assert.equal(room.game.phase, 'ready');
   assert.deepEqual(room.ready, [false, false]);
+});
+
+test('online rounds retain the authoritative board and synchronize intermission and round numbers', () => {
+  const room = makeRoom();
+  start(room);
+  room.game.players[0].carrying = true;
+  room.game.requestDig(0);
+  room.tick(4600);
+  room.tick(64000);
+  assert.equal(room.game.phase, 'intermission');
+  assert.deepEqual(room.game.scores, [1, 0]);
+  const epoch = room.epoch;
+  room.disconnect(1, 64000);
+  room.tick(65000);
+  assert.equal(room.game.phase, 'paused');
+  room.join('guest-secret', () => '', 65000);
+  assert.equal(room.game.phase, 'intermission');
+  room.tick(68000);
+  const snapshot = room.snapshot();
+  assert.equal(snapshot.round, 2);
+  assert.equal(snapshot.phase, 'playing');
+  assert.equal(snapshot.epoch, epoch);
+  assert.equal(room.game.buried.size, 1);
+  assert.deepEqual(snapshot.scores, [1, 0]);
+  assert.equal('buried' in snapshot, false);
+  assert.deepEqual(snapshot.roundResults[0], { round: 1, scores: [1, 0] });
 });

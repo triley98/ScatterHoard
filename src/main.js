@@ -3,6 +3,7 @@ import { Game, RULES } from './game.js';
 import { ForestScene } from './scene.js';
 import { WoodlandAudio } from './audio.js';
 import { OnlineSession, lobbyBase } from './online.js';
+import { PlayerBadges, badgeIcon } from './badges.js';
 
 const $ = (id) => document.getElementById(id);
 const arrowIcon =
@@ -32,7 +33,9 @@ let online = null;
 let remoteState = null;
 let lastInputAt = 0;
 let onlineDig = false;
-let powerupTimer;
+const badges = new PlayerBadges($('player-badges'), $('game-announcements'));
+for (const icon of document.querySelectorAll('[data-legend-icon]'))
+  icon.innerHTML = badgeIcon(icon.dataset.legendIcon);
 const sessionQuery = new URLSearchParams(location.search);
 $('lobby-server').value =
   sessionQuery.get('lobby') ||
@@ -42,7 +45,6 @@ $('lobby-server').value =
 let forest;
 let countdown = 0;
 let lastCountdownNumber = 0;
-let messageTimer;
 let helpPreviousPhase = null;
 let previousScores = [0, 0];
 let pendingRestart = false;
@@ -66,17 +68,12 @@ function clearInputs() {
   onlineDig = false;
   online?.input({ x: 0, z: 0 });
 }
-function showMessage(text, duration = 2500) {
-  clearTimeout(messageTimer);
-  $('arena-message').textContent = text;
-  $('arena-message').classList.add('visible');
-  messageTimer = setTimeout(
-    () => $('arena-message').classList.remove('visible'),
-    duration,
-  );
+function showMessage(text) {
+  // Connection and clipboard feedback stays in the lobby status, outside the playing field.
+  $('connection-status').textContent = text;
 }
 
-function beginRound() {
+function beginMatch() {
   if (!forest) return;
   if (online) {
     if (online.closed) return;
@@ -92,12 +89,11 @@ function beginRound() {
   game.reset();
   game.phase = 'countdown';
   forest.reset();
-  $('powerup-notice').hidden = true;
+  badges.clear();
   countdown = 3;
   lastCountdownNumber = 3;
   $('countdown-number').textContent = '3';
   $('countdown-overlay').hidden = false;
-  $('arena-message').classList.remove('visible');
   $('game-canvas').focus({ preventScroll: true });
   audio.play('tick');
   syncUI();
@@ -111,7 +107,7 @@ function pauseGame() {
     syncUI();
     return;
   }
-  if (game.phase === 'playing') game.pause();
+  if (['playing', 'intermission'].includes(game.phase)) game.pause();
   else if (game.phase === 'countdown') game.phase = 'paused-countdown';
   else return;
   clearInputs();
@@ -148,7 +144,14 @@ function showResults() {
       : 'Good paws. Great planning. Well played, both of you.';
   const total = game.scores[0] + game.scores[1];
   $('results-detail').textContent =
-    `${total} ${total === 1 ? 'acorn' : 'acorns'} tucked away. ${game.drops + game.bonusDrops} dropped. One very busy minute.`;
+    `${total} ${total === 1 ? 'acorn' : 'acorns'} tucked away. ${game.drops + game.bonusDrops} dropped. Three very busy rounds.`;
+  $('results-rounds').replaceChildren(
+    ...game.roundResults.map((result) => {
+      const row = document.createElement('div');
+      row.innerHTML = `<span>Round ${result.round}</span><strong>Red ${result.scores[0]} <span>—</span> Ash ${result.scores[1]}</strong>`;
+      return row;
+    }),
+  );
   $('results-dialog').showModal();
   audio.play('finish');
 }
@@ -156,7 +159,7 @@ function showResults() {
 function openHelp() {
   if (anyDialogOpen()) return;
   helpPreviousPhase = game.phase;
-  if (!online && game.phase === 'playing') game.pause();
+  if (!online && ['playing', 'intermission'].includes(game.phase)) game.pause();
   else if (!online && game.phase === 'countdown')
     game.phase = 'paused-countdown';
   clearInputs();
@@ -165,7 +168,11 @@ function openHelp() {
 }
 
 $('help-dialog').addEventListener('close', () => {
-  if (!online && helpPreviousPhase === 'playing' && game.phase === 'paused')
+  if (
+    !online &&
+    ['playing', 'intermission'].includes(helpPreviousPhase) &&
+    game.phase === 'paused'
+  )
     game.resume();
   if (
     !online &&
@@ -195,13 +202,13 @@ for (const dialog of dialogs)
     )
       dialog.close();
   });
-$('start-button').addEventListener('click', beginRound);
-$('rematch-button').addEventListener('click', beginRound);
-$('pause-restart-button').addEventListener('click', beginRound);
+$('start-button').addEventListener('click', beginMatch);
+$('rematch-button').addEventListener('click', beginMatch);
+$('pause-restart-button').addEventListener('click', beginMatch);
 $('resume-button').addEventListener('click', resumeGame);
 $('pause-button').addEventListener('click', pauseGame);
 $('restart-button').addEventListener('click', () => {
-  if (game.phase === 'finished') beginRound();
+  if (game.phase === 'finished') beginMatch();
   else {
     pendingRestart = true;
     pauseGame();
@@ -293,70 +300,19 @@ function inputs() {
   ];
 }
 
-const POWERUP_TEXT = {
-  'acorn-rain': [
-    'Acorn rain',
-    'Three extra acorns just dropped on your side.',
-    true,
-  ],
-  'speed-boost': [
-    'Fleet paws',
-    'A speed boost for six seconds. Make it count.',
-    true,
-  ],
-  'friendly-corvid': [
-    'A corvid accomplice',
-    'A corvid steals one acorn from the opponent’s patch.',
-    true,
-  ],
-  slowdown: [
-    'Heavy paws',
-    'Slowed down for six seconds. This too shall pass.',
-    false,
-  ],
-  'hungry-corvid': [
-    'A hungry corvid',
-    'A corvid steals one acorn from your own patch.',
-    false,
-  ],
-};
 function handleEvents(events = game.drainEvents()) {
   for (const event of events) {
     forest?.onEvent(event);
+    badges.onEvent(event);
     if (['pickup', 'bury', 'drop', 'unearth'].includes(event.type))
       audio.play(event.type === 'unearth' ? 'pickup' : event.type);
-    const name = event.player === 0 ? 'Red' : 'Ash';
-    if (event.type === 'pickup')
-      showMessage(`${name} found an acorn. Find a hiding spot and dig!`, 1800);
-    if (event.type === 'bury')
-      showMessage(`${name} tucked one away. Remember that spot.`, 1800);
-    if (event.type === 'unearth')
-      showMessage(
-        `${name} found the opponent’s stash! Take it home and bury it.`,
-        2500,
+    if (event.type === 'powerup')
+      audio.play(
+        ['slowdown', 'hungry-crow'].includes(event.kind) ? 'drop' : 'bury',
       );
-    if (event.type === 'miss')
-      showMessage(`${name}: nothing here. Keep guessing.`, 1200);
-    if (event.type === 'hint')
-      showMessage(
-        event.reason === 'busy'
-          ? 'Someone is digging here. Try another spot.'
-          : 'Couldn’t bury it here. Try another spot.',
-      );
-    if (event.type === 'powerup') {
-      const [title, description, good] = POWERUP_TEXT[event.kind];
-      $('powerup-title').textContent = `${name} found ${title}!`;
-      $('powerup-description').textContent =
-        event.kind.includes('corvid') && !event.stolen
-          ? 'The corvid swooped in, but found no buried acorns to steal.'
-          : description;
-      $('powerup-notice').classList.toggle('harmful', !good);
-      $('powerup-notice').hidden = false;
-      clearTimeout(powerupTimer);
-      powerupTimer = setTimeout(() => {
-        $('powerup-notice').hidden = true;
-      }, 5000);
-      audio.play(good ? 'bury' : 'drop');
+    if (event.type === 'roundEnd' || event.type === 'roundStart') {
+      clearInputs();
+      audio.play(event.type === 'roundStart' ? 'go' : 'tick');
     }
     if (event.type === 'finish') showResults();
   }
@@ -372,7 +328,7 @@ function resetToLocal() {
   clearInputs();
   for (const dialog of dialogs) if (dialog.open) dialog.close();
   $('room-bar').hidden = true;
-  $('powerup-notice').hidden = true;
+  badges.clear();
   $('connection-status').textContent = 'Two squirrels. One screen.';
   $('local-mode').classList.add('active');
   $('online-mode').classList.remove('active');
@@ -415,7 +371,7 @@ function connectRoom(session) {
     const oldPhase = game.phase;
     if (!remoteState || state.epoch !== remoteState.epoch) {
       forest.reset();
-      $('powerup-notice').hidden = true;
+      badges.clear();
     }
     remoteState = state;
     Object.assign(game, state);
@@ -426,8 +382,6 @@ function connectRoom(session) {
       !events.some((e) => e.type === 'finish')
     )
       showResults();
-    $('countdown-overlay').hidden = state.phase !== 'countdown';
-    $('countdown-number').textContent = Math.max(1, Math.ceil(state.countdown));
     if (state.phase === 'paused')
       $('connection-status').textContent =
         'Round paused · Waiting for your friend to reconnect…';
@@ -472,7 +426,7 @@ $('online-mode').addEventListener('click', () => {
   if (online && !online.closed) return;
   if (!anyDialogOpen()) {
     clearInputs();
-    if (game.phase === 'playing') game.pause();
+    if (['playing', 'intermission'].includes(game.phase)) game.pause();
     else if (game.phase === 'countdown') game.phase = 'paused-countdown';
     $('lobby-dialog').showModal();
   }
@@ -517,6 +471,7 @@ function syncUI() {
   const mySeat = online && remoteState ? remoteState.seats[online.slot] : null;
   const running = [
     'playing',
+    'intermission',
     'countdown',
     'paused',
     'paused-countdown',
@@ -530,26 +485,44 @@ function syncUI() {
     'urgent',
     seconds <= 10 && phase === 'playing',
   );
-  $('round-label').textContent =
-    phase === 'ready'
-      ? 'YOUR NEXT WOODLAND RIVALRY'
-      : phase === 'playing'
-        ? 'MAKE EVERY ACORN COUNT'
-        : finished
-          ? 'THE CLEARING HAS SPOKEN'
-          : phase === 'countdown'
-            ? 'PAWS AT THE READY'
-            : 'A LITTLE BREATHER';
+  $('round-label').textContent = finished
+    ? 'THREE ROUNDS. ONE WINNER.'
+    : `ROUND ${game.round} OF ${RULES.rounds}`;
   $('clock-caption').textContent =
     phase === 'ready'
-      ? 'A one-minute scramble'
+      ? 'Three one-minute rounds'
       : phase === 'playing'
-        ? `${game.drops} of 12 drops${game.bonusDrops ? ` + ${game.bonusDrops} bonus` : ''}`
-        : finished
-          ? 'Time’s up. Tails high.'
-          : phase === 'countdown'
-            ? 'The scramble starts soon'
-            : 'Round paused';
+        ? `${game.drops} of 36 drops${game.bonusDrops ? ` + ${game.bonusDrops} bonus` : ''}`
+        : phase === 'intermission'
+          ? 'The clearing stays. The rivalry continues.'
+          : finished
+            ? 'Time’s up. Tails high.'
+            : phase === 'countdown'
+              ? 'The scramble starts soon'
+              : 'Match paused';
+  const between = phase === 'intermission';
+  $('countdown-overlay').hidden = ![
+    'countdown',
+    'paused-countdown',
+    'intermission',
+  ].includes(phase);
+  $('countdown-label').textContent = between
+    ? `ROUND ${game.round + 1} OF ${RULES.rounds} · SAME CLEARING`
+    : 'ROUND 1 OF 3 · PAWS AT THE READY';
+  $('countdown-number').textContent = Math.max(
+    1,
+    Math.ceil(
+      between
+        ? game.intermissionRemaining
+        : online
+          ? remoteState?.countdown || 3
+          : countdown,
+    ),
+  );
+  document.querySelectorAll('#round-progress span').forEach((dot, i) => {
+    dot.classList.toggle('complete', i < game.roundResults.length);
+    dot.classList.toggle('current', i + 1 === game.round && !finished);
+  });
   $('start-button').hidden = running;
   $('start-button').disabled =
     !forest || Boolean(online && (online.closed || !mySeat || mySeat.ready));
@@ -567,12 +540,12 @@ function syncUI() {
   $('pause-restart-button').hidden = Boolean(online);
   $('rematch-button').textContent = online
     ? 'Ready for a rematch'
-    : 'One more round';
+    : 'One more match';
   $('pause-title').innerHTML = pendingRestart
     ? 'A fresh<br><em>start?</em>'
     : 'Taking a<br><em>breather.</em>';
   $('pause-dialog').querySelector('p').textContent = pendingRestart
-    ? 'Start over with an empty board, or get back to this round.'
+    ? 'Start a new three-round match with an empty board, or keep playing.'
     : 'Your acorns aren’t going anywhere. Ready when you are.';
   if (online) {
     $('pause-title').innerHTML = 'A quick<br><em>breather.</em>';
@@ -580,9 +553,9 @@ function syncUI() {
       'The online round keeps going while this menu is open. Your squirrel stays still.';
   }
   if (phase === 'ready') {
-    $('toolbar-title').textContent = 'A little hustle. A lot of hoarding.';
+    $('toolbar-title').textContent = 'Three rounds. A whole lot of hoarding.';
     $('toolbar-subtitle').textContent =
-      'Bring a friend. The forest will keep score.';
+      'One clearing, three minutes. Every hiding spot carries over.';
   } else if (finished) {
     $('toolbar-title').textContent =
       game.winner === null
@@ -615,7 +588,7 @@ function syncUI() {
     const carry = $(name + '-carry');
     const effect = $(name + '-effect');
     effect.textContent = player.effect
-      ? `${player.effect === 'speed-boost' ? 'Fleet paws' : 'Heavy paws'} · ${Math.max(0, Math.ceil(player.effectUntil - game.elapsed))}s`
+      ? `${player.effect === 'speed-boost' ? 'Fast feet' : 'Slow feet'} · ${Math.max(0, Math.ceil(player.effectUntil - game.matchElapsed))}s`
       : '';
     effect.classList.toggle('slow', player.effect === 'slowdown');
     carry.textContent = player.dig
@@ -658,7 +631,6 @@ function frame(now) {
       game.start();
       clearInputs();
       audio.play('go');
-      showMessage('Off you scurry! Run over an acorn to pick it up.');
     }
   } else game.update(dt, inputs());
   handleEvents();
@@ -666,7 +638,10 @@ function frame(now) {
     syncUI();
     nextUI = now + 80;
   }
-  forest?.render(now / 1000, dt);
+  if (forest) {
+    forest.render(now / 1000, dt);
+    badges.render(forest, game, dt);
+  }
   requestAnimationFrame(frame);
 }
 syncUI();

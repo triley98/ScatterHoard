@@ -14,28 +14,40 @@ const makeGame = () => {
 function giveAcorn(game, id, x = 8.5, z = 5.5) {
   const player = game.players[id];
   Object.assign(player, { x, z, vx: 0, vz: 0 });
-  game.acorns = [{ id: game.nextId++, x, z, born: game.elapsed }];
+  game.acorns = [{ id: game.nextId++, x, z, born: game.matchElapsed }];
   game.update(1 / 60, idle);
   assert.equal(player.carrying, true);
 }
 
-test('a round lasts exactly 60 seconds and has 12 drops, at 0, 5, …, 55', () => {
+test('three rounds last exactly 60 seconds each, with 12 drops per round and three-second breaks', () => {
   const game = makeGame();
-  assert.equal(game.drops, 1);
-  game.update(4.99, idle);
-  assert.equal(game.drops, 1);
-  game.update(0.01, idle);
-  assert.equal(game.drops, 2);
-  game.update(54, idle);
-  assert.equal(game.phase, 'playing');
-  assert.ok(Math.abs(game.remaining - 1) < 1e-6);
-  game.update(2, idle);
+  for (let round = 1; round <= 3; round++) {
+    assert.equal(game.round, round);
+    assert.equal(game.drops, (round - 1) * 12 + 1);
+    game.update(4.99, idle);
+    assert.equal(game.drops, (round - 1) * 12 + 1);
+    game.update(0.01, idle);
+    assert.equal(game.drops, (round - 1) * 12 + 2);
+    game.update(54, idle);
+    assert.equal(game.phase, 'playing');
+    assert.ok(Math.abs(game.remaining - 1) < 1e-6);
+    game.update(1, idle);
+    assert.equal(game.elapsed, 60);
+    assert.equal(game.drops, round * 12);
+    assert.equal(game.roundResults.length, round);
+    if (round < 3) {
+      assert.equal(game.phase, 'intermission');
+      game.update(2.99, idle);
+      assert.equal(game.phase, 'intermission');
+      game.update(0.01, idle);
+      assert.equal(game.phase, 'playing');
+      assert.equal(game.elapsed, 0);
+    }
+  }
   assert.equal(game.phase, 'finished');
-  assert.equal(game.elapsed, 60);
-  assert.equal(game.drops, 12);
-  assert.equal(game.remaining, 0);
+  assert.equal(game.matchElapsed, 180);
   game.update(50, idle);
-  assert.equal(game.drops, 12);
+  assert.equal(game.drops, 36);
 });
 
 test('movement is continuous, accelerates smoothly, and clamps to the 40 × 10 board', () => {
@@ -127,16 +139,16 @@ test('empty-pawed digging steals an opponent’s hidden acorn and removes its ol
   assert.equal(game.players[0].carrying, false);
 });
 
-test('search misses do not take one’s own buried acorns', () => {
+test('empty-handed digging recovers one’s own buried acorns and removes their old score', () => {
   const game = makeGame();
   giveAcorn(game, 0);
   game.requestDig(0);
   game.update(RULES.digDuration, idle);
   game.requestDig(0);
   game.update(RULES.digDuration, idle);
-  assert.equal(game.players[0].carrying, false);
-  assert.deepEqual(game.scores, [1, 0]);
-  assert.ok(game.drainEvents().some((e) => e.type === 'miss'));
+  assert.equal(game.players[0].carrying, true);
+  assert.deepEqual(game.scores, [0, 0]);
+  assert.ok(game.drainEvents().some((e) => e.type === 'unearth'));
 });
 
 test('powerups roll only after completed empty-handed digs, at the exact 10% threshold', () => {
@@ -172,9 +184,9 @@ test('all five outcomes are selected, with three bonus drops restricted to the f
   const kinds = [
     'acorn-rain',
     'speed-boost',
-    'friendly-corvid',
+    'friendly-crow',
     'slowdown',
-    'hungry-corvid',
+    'hungry-crow',
   ];
   for (let i = 0; i < kinds.length; i++) {
     const game = makeGame();
@@ -212,7 +224,7 @@ test('speed boost and slowdown change movement for six seconds, do not stack, an
   assert.equal(slowed.players[0].effect, null);
 });
 
-test('helpful and harmful corvids remove one acorn from the correct patch without revealing its location', () => {
+test('helpful and harmful crows remove one acorn from the correct patch without revealing its location', () => {
   const game = makeGame();
   giveAcorn(game, 0);
   game.requestDig(0);
@@ -221,11 +233,11 @@ test('helpful and harmful corvids remove one acorn from the correct patch withou
   game.requestDig(1);
   game.update(RULES.digDuration, idle);
   game.drainEvents();
-  game.applyPowerup(game.players[0], 'friendly-corvid');
+  game.applyPowerup(game.players[0], 'friendly-crow');
   assert.deepEqual(game.scores, [1, 0]);
-  game.applyPowerup(game.players[0], 'hungry-corvid');
+  game.applyPowerup(game.players[0], 'hungry-crow');
   assert.deepEqual(game.scores, [0, 0]);
-  game.applyPowerup(game.players[0], 'hungry-corvid');
+  game.applyPowerup(game.players[0], 'hungry-crow');
   const events = game.drainEvents();
   assert.deepEqual(
     events.map((e) => e.stolen),
@@ -294,10 +306,10 @@ test('pause freezes the clock, movement, drops, and ongoing digs; resume continu
   assert.equal(game.buried.size, 1);
 });
 
-test('round end rejects further movement and digs; rematch clears all round state', () => {
+test('match end rejects further movement and digs; rematch clears all round state', () => {
   const game = makeGame();
   giveAcorn(game, 0);
-  game.update(60, idle);
+  game.update(186, idle);
   assert.equal(game.phase, 'finished');
   assert.equal(game.requestDig(0), false);
   const x = game.players[0].x;
@@ -332,4 +344,96 @@ test('fractional coordinates map to grid cells at edges and across the center li
   assert.equal(cellKey(cellAt(19.999, 9.99)), '19,9');
   assert.equal(cellKey(cellAt(20, 0)), '20,0');
   assert.equal(cellKey(cellAt(40, 10)), '39,9');
+});
+
+test('round transitions retain buried and loose acorns, carried inventory, positions, and scores', () => {
+  const game = makeGame();
+  giveAcorn(game, 0);
+  game.requestDig(0);
+  game.update(RULES.digDuration, idle);
+  giveAcorn(game, 1, 30.5, 4.5);
+  game.update(60 - game.elapsed, idle);
+  assert.equal(game.phase, 'intermission');
+  const board = game.buried,
+    loose = game.acorns.map((a) => ({ ...a }));
+  const players = game.players.map((p) => ({
+    x: p.x,
+    z: p.z,
+    carrying: p.carrying,
+  }));
+  game.update(3, idle);
+  assert.equal(game.round, 2);
+  assert.equal(game.buried, board);
+  assert.deepEqual(game.scores, [1, 0]);
+  assert.ok(
+    loose.every((a) =>
+      game.acorns.some((b) => b.id === a.id && b.born === a.born),
+    ),
+  );
+  assert.deepEqual(
+    game.players.map((p) => ({ x: p.x, z: p.z, carrying: p.carrying })),
+    players,
+  );
+  game.players[1].carrying = false;
+  Object.assign(game.players[1], { x: 8.5, z: 5.5 });
+  game.requestDig(1);
+  game.update(RULES.digDuration, idle);
+  assert.equal(game.players[1].carrying, true);
+  assert.deepEqual(game.scores, [0, 0]);
+});
+
+test('round breaks freeze movement and digging, pause cleanly, and preserve remaining buff time', () => {
+  const game = makeGame();
+  game.update(59, idle);
+  game.applyPowerup(game.players[0], 'speed-boost');
+  game.update(1, idle);
+  assert.equal(game.phase, 'intermission');
+  assert.equal(game.requestDig(0), false);
+  const x = game.players[0].x;
+  game.pause();
+  game.update(20, [{ x: 1, z: 0 }, idle[1]]);
+  assert.equal(game.intermissionRemaining, 3);
+  game.resume();
+  game.update(3, [{ x: 1, z: 0 }, idle[1]]);
+  assert.equal(game.players[0].x, x);
+  assert.equal(game.round, 2);
+  assert.ok(
+    Math.abs(game.players[0].effectUntil - game.matchElapsed - 5) < 1e-6,
+  );
+  game.update(5.01, idle);
+  assert.equal(game.players[0].effect, null);
+});
+
+test('only the final board decides the match and each round keeps its own score snapshot', () => {
+  const game = makeGame();
+  giveAcorn(game, 0);
+  game.requestDig(0);
+  game.update(RULES.digDuration, idle);
+  game.update(60 - game.elapsed, idle);
+  assert.deepEqual(game.roundResults[0], { round: 1, scores: [1, 0] });
+  assert.equal(game.phase, 'intermission');
+  game.update(3, idle);
+  Object.assign(game.players[1], { x: 8.5, z: 5.5 });
+  game.requestDig(1);
+  game.update(RULES.digDuration, idle);
+  Object.assign(game.players[1], { x: 30.5, z: 5.5 });
+  game.requestDig(1);
+  game.update(RULES.digDuration, idle);
+  game.update(60 - game.elapsed, idle);
+  assert.deepEqual(game.roundResults[0].scores, [1, 0]);
+  assert.deepEqual(game.roundResults[1].scores, [0, 1]);
+  game.update(62.5, idle);
+  game.applyPowerup(game.players[0], 'speed-boost');
+  game.update(0.5, idle);
+  assert.equal(game.phase, 'finished');
+  assert.equal(game.players[0].effect, null);
+  assert.equal(game.winner, 1);
+  assert.deepEqual(
+    game.roundResults.map((r) => r.scores),
+    [
+      [1, 0],
+      [0, 1],
+      [0, 1],
+    ],
+  );
 });

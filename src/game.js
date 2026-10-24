@@ -3,6 +3,8 @@ export const RULES = Object.freeze({
   depth: 10,
   half: 20,
   duration: 60,
+  rounds: 3,
+  intermission: 3,
   dropInterval: 5,
   speed: 7,
   acceleration: 32,
@@ -16,9 +18,9 @@ export const RULES = Object.freeze({
 export const POWERUPS = [
   'acorn-rain',
   'speed-boost',
-  'friendly-corvid',
+  'friendly-crow',
   'slowdown',
-  'hungry-corvid',
+  'hungry-crow',
 ];
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
@@ -55,6 +57,10 @@ export class Game {
   reset() {
     this.phase = 'ready';
     this.elapsed = 0;
+    this.round = 1;
+    this.roundResults = [];
+    this.intermissionRemaining = 0;
+    this.resumePhase = null;
     this.nextDrop = 0;
     this.players = [newPlayer(0), newPlayer(1)];
     this.acorns = [];
@@ -69,6 +75,9 @@ export class Game {
 
   get remaining() {
     return Math.max(0, RULES.duration - this.elapsed);
+  }
+  get matchElapsed() {
+    return (this.round - 1) * RULES.duration + this.elapsed;
   }
   get winner() {
     return this.scores[0] === this.scores[1]
@@ -86,10 +95,16 @@ export class Game {
   }
 
   pause() {
-    if (this.phase === 'playing') this.phase = 'paused';
+    if (['playing', 'intermission'].includes(this.phase)) {
+      this.resumePhase = this.phase;
+      this.phase = 'paused';
+    }
   }
   resume() {
-    if (this.phase === 'paused') this.phase = 'playing';
+    if (this.phase === 'paused') {
+      this.phase = this.resumePhase || 'playing';
+      this.resumePhase = null;
+    }
   }
   drainEvents() {
     return this.events.splice(0);
@@ -111,7 +126,7 @@ export class Game {
       )
         break;
     }
-    const acorn = { id: this.nextId++, x, z, born: this.elapsed };
+    const acorn = { id: this.nextId++, x, z, born: this.matchElapsed };
     this.acorns.push(acorn);
     if (bonus) this.bonusDrops++;
     else this.drops++;
@@ -148,11 +163,23 @@ export class Game {
       { x: 0, z: 0 },
     ],
   ) {
-    if (this.phase !== 'playing' || !Number.isFinite(dt) || dt <= 0) return;
+    if (
+      !['playing', 'intermission'].includes(this.phase) ||
+      !Number.isFinite(dt) ||
+      dt <= 0
+    )
+      return;
     // Substeps make movement, pickup, drops, and digging independent of frame rate.
-    let left = Math.min(dt, this.remaining);
-    while (left > 1e-8 && this.phase === 'playing') {
-      const step = Math.min(left, 1 / 60);
+    let left = dt;
+    while (left > 1e-8 && ['playing', 'intermission'].includes(this.phase)) {
+      if (this.phase === 'intermission') {
+        const used = Math.min(left, this.intermissionRemaining);
+        this.intermissionRemaining -= used;
+        left -= used;
+        if (this.intermissionRemaining < 1e-8) this.nextRound();
+        continue;
+      }
+      const step = Math.min(left, 1 / 60, this.remaining);
       this.step(step, inputs);
       left -= step;
     }
@@ -169,7 +196,7 @@ export class Game {
     }
 
     for (const player of this.players) {
-      if (player.effect && this.elapsed >= player.effectUntil)
+      if (player.effect && this.matchElapsed >= player.effectUntil)
         player.effect = null;
       let { x = 0, z = 0 } = inputs[player.id] ?? {};
       const magnitude = Math.hypot(x, z);
@@ -243,8 +270,27 @@ export class Game {
 
     if (this.elapsed >= RULES.duration - 1e-8) {
       this.elapsed = RULES.duration;
+      this.roundResults.push({ round: this.round, scores: [...this.scores] });
+      for (const player of this.players) {
+        player.dig = null;
+        player.vx = 0;
+        player.vz = 0;
+      }
+      if (this.round < RULES.rounds) {
+        this.phase = 'intermission';
+        this.intermissionRemaining = RULES.intermission;
+        this.events.push({
+          type: 'roundEnd',
+          round: this.round,
+          scores: [...this.scores],
+        });
+        return;
+      }
       this.phase = 'finished';
-      for (const player of this.players) player.dig = null;
+      for (const player of this.players) {
+        player.effect = null;
+        player.effectUntil = 0;
+      }
       this.events.push({
         type: 'finish',
         scores: [...this.scores],
@@ -258,7 +304,7 @@ export class Game {
     player.dig = null;
     if (cell.mode === 'search') {
       const acorn = this.buried.get(cell.key);
-      if (acorn && acorn.player !== player.id) {
+      if (acorn) {
         this.buried.delete(cell.key);
         this.scores[acorn.territory]--;
         player.carrying = true;
@@ -299,10 +345,10 @@ export class Game {
       for (let i = 0; i < 3; i++) this.dropAcorn(player.id, true);
     if (kind === 'speed-boost' || kind === 'slowdown') {
       player.effect = kind;
-      player.effectUntil = this.elapsed + RULES.effectDuration;
+      player.effectUntil = this.matchElapsed + RULES.effectDuration;
     }
-    if (kind === 'friendly-corvid' || kind === 'hungry-corvid') {
-      victim = kind === 'friendly-corvid' ? 1 - player.id : player.id;
+    if (kind === 'friendly-crow' || kind === 'hungry-crow') {
+      victim = kind === 'friendly-crow' ? 1 - player.id : player.id;
       const options = [...this.buried.entries()].filter(
         ([, acorn]) => acorn.territory === victim,
       );
@@ -322,11 +368,28 @@ export class Game {
     });
   }
 
+  nextRound() {
+    if (this.phase !== 'intermission' || this.round >= RULES.rounds) return;
+    this.round++;
+    this.elapsed = 0;
+    this.intermissionRemaining = 0;
+    this.nextDrop = RULES.dropInterval;
+    this.phase = 'playing';
+    this.events.push({ type: 'roundStart', round: this.round });
+    this.dropAcorn();
+  }
+
   // Hidden cell coordinates, ownership, reservations, and RNG never leave the authority.
   snapshot() {
     return {
       phase: this.phase,
       elapsed: this.elapsed,
+      round: this.round,
+      roundResults: this.roundResults.map((result) => ({
+        round: result.round,
+        scores: [...result.scores],
+      })),
+      intermissionRemaining: this.intermissionRemaining,
       nextDrop: this.nextDrop,
       scores: [...this.scores],
       drops: this.drops,
