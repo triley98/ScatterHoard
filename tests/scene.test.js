@@ -50,3 +50,35 @@ test('forest border contains only trees, bushes, mushrooms and a plain ground', 
   assert.ok(groups.filter(c => c.name === 'mushroom-cluster').length >= 10);
   assert.ok(groups.filter(c => c.name === 'bush').length >= 10);
 });
+
+test('experimental hopping bounds on four legs, then stands upright when stopped', () => {
+  const squirrel = makeSquirrel(0);
+  let peak = 0;
+  for (let frame = 0; frame < 60; frame++) {
+    poseSquirrel(squirrel, { ...pose, hopping: true, speed: 7 });
+    peak = Math.max(peak, squirrel.body.position.y);
+  }
+  assert.ok(peak > 0.25);
+  assert.ok(squirrel.head.position.y < 0.8);
+  assert.ok(squirrel.forepaws.every(p => p.visible));
+  const hopHeight = squirrel.body.position.y;
+  poseSquirrel(squirrel, { ...pose, hopping: true, frozen: true });
+  assert.equal(squirrel.body.position.y, hopHeight);
+  for (let frame = 0; frame < 40; frame++)
+    poseSquirrel(squirrel, { ...pose, hopping: true, moving: false });
+  assert.ok(squirrel.head.position.y > 1.1);
+  assert.ok(squirrel.body.position.y < 0.01);
+  assert.ok(squirrel.forepaws.every(p => !p.visible));
+});
+
+test('hopping can be disabled without affecting climbing or movement authority', () => {
+  const squirrel = makeSquirrel(0);
+  const position = squirrel.root.position.clone();
+  for (let frame = 0; frame < 30; frame++)
+    poseSquirrel(squirrel, { ...pose, hopping: false });
+  assert.ok(squirrel.head.position.y > 1);
+  assert.deepEqual(squirrel.root.position, position);
+  poseSquirrel(squirrel, { ...pose, hopping: false, climb: 1, climbPitch: Math.PI / 2 });
+  assert.ok(squirrel.forepaws.every(p => p.visible));
+  assert.equal(squirrel.body.rotation.x, Math.PI / 2);
+});

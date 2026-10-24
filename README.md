@@ -38,6 +38,10 @@ Location determines the score: columns 1–20 score for Red and 21–40 for Ash,
 
 Local play pauses with Esc, Pause, opening help, or leaving the tab. Online menus and background tabs do not pause the other player. A network disconnection pauses the shared match for up to 30 seconds while that player's browser reconnects with its private session ticket. After that, the round resets and both players can ready up again. Rooms expire after 15 minutes. Deploying a new Worker or a platform restart can reset an active match; rooms are intended for short games, not permanent storage.
 
+## Reversible hopping experiment
+
+Ground movement currently uses a four-legged bounding gait with a short airborne phase; squirrels stand upright when stationary. This is visual only. Set `HOPPING_MOVEMENT` to `false` in `src/movement.js` to restore upright ground movement while keeping four-paw climbing and the scenery updates.
+
 ## Run and test
 
 Use Node.js 24 (`.nvmrc`; Node 22.12+ supported) and npm.
