@@ -808,6 +808,14 @@ dialog h2 em {
   height: 100%;
   touch-action: none;
 }
+.round-fade {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+}
 .arena-topline,
 .arena-bottomline {
   position: absolute;

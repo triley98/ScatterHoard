@@ -31,6 +31,21 @@ test('stationary squirrels stand upright on their hind legs', () => {
   assert.ok(squirrel.forepaws.every(p => !p.visible));
 });
 
+test('tree ascent points the head upward while all four paws grip the front of the trunk', () => {
+  for (const id of [0, 1]) {
+    const squirrel = makeSquirrel(id);
+    squirrel.root.position.set(id ? 22 : -22, 5, 1.15);
+    squirrel.rotation = Math.PI;
+    poseSquirrel(squirrel, { ...pose, climb: 1, climbPitch: -Math.PI / 2 });
+    squirrel.root.updateMatrixWorld(true);
+    const position = object => object.getWorldPosition(new THREE.Vector3());
+    assert.ok(position(squirrel.head).y > position(squirrel.feet[0]).y);
+    for (const paw of [...squirrel.feet, ...squirrel.forepaws])
+      assert.ok(position(paw).z > 1.2 && position(paw).z < 1.45);
+    assert.equal(squirrel.ring.visible, false);
+  }
+});
+
 test('natural rocks use one continuous mesh with matching mirrored facets', () => {
   const left = makeRock({ x: 5, z: 2, width: 2, depth: 2 }, 0);
   const right = makeRock({ x: 33, z: 2, width: 2, depth: 2 }, 2);

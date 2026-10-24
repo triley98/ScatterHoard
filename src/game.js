@@ -1,10 +1,14 @@
+import { ROUND_TIMING, transitionDuration } from './round-transition.js';
+
 export const RULES = Object.freeze({
   width: 40,
   depth: 15,
   half: 20,
   duration: 60,
   rounds: 3,
-  intermission: 5,
+  intermission: transitionDuration(),
+  ending: transitionDuration(true),
+  countdown: ROUND_TIMING.countdown,
   dropInterval: 5,
   speed: 7,
   acceleration: 32,
@@ -110,11 +114,15 @@ function makeObstacles(random) {
   return { rocks: mirrored('rock'), stumps: mirrored('stump') };
 }
 
+export function playerStart(id) {
+  return { x: id === 0 ? 8.5 : 31.5, z: RULES.depth / 2,
+    facing: id === 0 ? Math.PI / 2 : -Math.PI / 2 };
+}
+
 function newPlayer(id) {
   return {
     id,
-    x: id === 0 ? 8.5 : 31.5,
-    z: RULES.depth / 2,
+    ...playerStart(id),
     vx: 0,
     vz: 0,
     carrying: false,
@@ -387,34 +395,26 @@ export class Game {
       this.roundResults.push({ round: this.round, scores: [...this.scores] });
       this.acorns = [];
       for (const player of this.players) {
-        const start = newPlayer(player.id);
-        player.x = start.x;
-        player.z = start.z;
-        player.facing = player.id === 0 ? Math.PI / 2 : -Math.PI / 2;
+        // Retain the last public position so every client can animate the return,
+        // including a client that reconnects partway through the break.
         player.carrying = false;
         player.dig = null;
         player.vx = 0;
         player.vz = 0;
       }
-      if (this.round < RULES.rounds) {
-        this.phase = 'intermission';
-        this.intermissionRemaining = RULES.intermission;
-        this.events.push({
-          type: 'roundEnd',
-          round: this.round,
-          scores: [...this.scores],
-        });
-        return;
-      }
-      this.phase = 'finished';
-      for (const player of this.players) {
-        player.effect = null;
-        player.effectUntil = 0;
+      const final = this.round === RULES.rounds;
+      this.phase = 'intermission';
+      this.intermissionRemaining = final ? RULES.ending : RULES.intermission;
+      if (final) {
+        for (const player of this.players) {
+          player.effect = null;
+          player.effectUntil = 0;
+        }
       }
       this.events.push({
-        type: 'finish',
+        type: 'roundEnd',
+        round: this.round,
         scores: [...this.scores],
-        winner: this.winner,
       });
     }
   }
@@ -489,10 +489,16 @@ export class Game {
   }
 
   nextRound() {
-    if (this.phase !== 'intermission' || this.round >= RULES.rounds) return;
-    this.round++;
-    this.elapsed = 0;
+    if (this.phase !== 'intermission') return;
     this.intermissionRemaining = 0;
+    if (this.round === RULES.rounds) {
+      this.phase = 'finished';
+      this.events.push({ type: 'finish', scores: [...this.scores], winner: this.winner });
+      return;
+    }
+    this.round++;
+    for (const player of this.players) Object.assign(player, playerStart(player.id));
+    this.elapsed = 0;
     this.nextDrop = RULES.dropInterval;
     this.phase = 'playing';
     this.events.push({ type: 'roundStart', round: this.round });

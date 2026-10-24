@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('forest obstacles, wind, and sunlight follow the round and five-second break', async ({ page }, testInfo) => {
+test('forest obstacles, wind, sunlight, and squirrels follow the full round transition', async ({ page }, testInfo) => {
   test.setTimeout(60000);
   await page.setViewportSize({ width: 1400, height: 700 });
   const errors = [];
@@ -47,21 +47,47 @@ test('forest obstacles, wind, and sunlight follow the round and five-second brea
     return {beforeFade, sunset, drifting, paused: forest.windLeaves.leaves[0].x === frozen && forest.sun.position.x === lightX};
   });
   expect(later.beforeFade).toBe(3.2);
-  expect(later.sunset.intensity).toBeCloseTo(1.95);
+  expect(later.sunset.intensity).toBeCloseTo(2.5);
   expect(later.sunset.x).toBeGreaterThan(daytime.position[0]);
   expect(later.drifting).toBe(true);
   expect(later.paused).toBe(true);
   await page.screenshot({path:testInfo.outputPath('sunset.png')});
   const transition = await page.evaluate(() => {
     const {game, forest} = window.fixture;
-    game.resume(); game.update(60-game.elapsed); forest.render(60, 1/60);
+    game.resume();
+    game.players[0].x = 36; game.players[1].x = 4;
+    game.update(60-game.elapsed); forest.render(60, 1/60);
     const breakStart = game.intermissionRemaining;
-    game.update(4.99);
+    const exitStarts = forest.squirrels.map(s => s.root.position.x);
+    game.update(2.4); forest.render(62.4, 1/60);
+    const climbing = forest.squirrels.map(s => ({y:s.root.position.y, pitch:s.body.rotation.x}));
+    game.pause();
+    const frozen = forest.squirrels.map(s => s.root.position.toArray());
+    game.update(10); forest.render(72.4, 1/60);
+    const climbPaused = JSON.stringify(frozen) === JSON.stringify(forest.squirrels.map(s => s.root.position.toArray()));
+    game.resume(); game.update(0.6); forest.render(63, 1/60);
+    const treetops = forest.squirrels.map(s => s.root.position.toArray());
+    game.update(3); forest.render(66, 1/60);
+    const resetAtBlack = forest.sun.intensity;
+    game.update(5.99);
     const waiting = game.phase === 'intermission';
-    game.update(0.01); forest.render(65, 1/60);
-    forest.reducedMotion = true; forest.render(65, 1/60);
-    return {breakStart, waiting, phase:game.phase, round:game.round, intensity:forest.sun.intensity, leavesHidden:!forest.windLeaves.mesh.visible};
+    game.update(0.01); forest.render(72, 1/60);
+    forest.reducedMotion = true; forest.render(72, 1/60);
+    return {breakStart, exitStarts, climbing, climbPaused, treetops, resetAtBlack,
+      waiting, phase:game.phase, round:game.round, intensity:forest.sun.intensity, leavesHidden:!forest.windLeaves.mesh.visible};
   });
-  expect(transition).toEqual({breakStart:5, waiting:true, phase:'playing', round:2, intensity:3.2, leavesHidden:true});
+  expect(transition.breakStart).toBe(12);
+  expect(transition.exitStarts).toEqual([16,-16]);
+  expect(transition.climbing.every(s => s.y > 1 && s.pitch < -1.5)).toBe(true);
+  expect(transition.climbPaused).toBe(true);
+  expect(transition.treetops[0][0]).toBeCloseTo(-22);
+  expect(transition.treetops[1][0]).toBeCloseTo(22);
+  expect(transition.treetops.every(p => p[1] > 7)).toBe(true);
+  expect(transition.resetAtBlack).toBe(3.2);
+  expect(transition.waiting).toBe(true);
+  expect(transition.phase).toBe('playing');
+  expect(transition.round).toBe(2);
+  expect(transition.intensity).toBe(3.2);
+  expect(transition.leavesHidden).toBe(true);
   expect(errors).toEqual([]);
 });

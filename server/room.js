@@ -1,4 +1,4 @@
-import { Game } from '../src/game.js';
+import { Game, RULES } from '../src/game.js';
 
 const emptyInput = () => ({ x: 0, z: 0, at: 0, seq: -1 });
 
@@ -63,7 +63,7 @@ export class MatchRoom {
     if (this.ready.every(Boolean) && this.connected.every(Boolean)) {
       this.game.reset();
       this.game.phase = 'countdown';
-      this.countdown = 3;
+      this.countdown = RULES.countdown;
       this.ready = [false, false];
       this.epoch++;
       this.inputs = [emptyInput(), emptyInput()];

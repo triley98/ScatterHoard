@@ -112,15 +112,15 @@ test('a real browser can render, collect, bury, pause, finish, and rematch', asy
   await expect(page.locator('#help-dialog')).toBeHidden();
 
   // All three rounds share the same board; only the third opens match results.
-  await advance(page, 60000);
+  await advance(page, 72000);
   await expect(page.locator('#round-label')).toHaveText('ROUND 2 OF 3');
   await expect(page.locator('#red-score')).toHaveText('2');
   await expect(page.locator('#results-dialog')).toBeHidden();
-  await advance(page, 65000);
+  await advance(page, 72000);
   await expect(page.locator('#round-label')).toHaveText('ROUND 3 OF 3');
   await expect(page.locator('#red-score')).toHaveText('2');
   await expect(page.locator('#results-dialog')).toBeHidden();
-  await advance(page, 65000);
+  await advance(page, 81000);
   await expect(page.locator('#clock')).toHaveText('00:00');
   await expect(page.locator('#results-dialog')).toBeVisible();
   await expect(page.locator('#results-title')).toContainText('Red takes');

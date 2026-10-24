@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import { RULES } from './game.js';
+import { RULES, playerStart } from './game.js';
 import { makeTurfTexture } from './turf.js';
 import { poseSquirrel } from './squirrel-motion.js';
 import { roundLighting, WindLeaves } from './atmosphere.js';
 import { makeLandscape, makeRock, makeStump, cullOuterForest } from './landscape.js';
+import { roundTransition, returnPath, pointOnPath } from './round-transition.js';
 
 const colors = {
   red: 0xb6653e,
@@ -474,6 +475,7 @@ export class ForestScene {
   }
 
   reset() {
+    this.returnPaths = null;
     for (const object of this.acornMeshes.values()) this.removeGroup(object);
     for (const bird of this.birds) this.removeGroup(bird.root);
     this.acornMeshes.clear();
@@ -540,7 +542,10 @@ export class ForestScene {
     this.syncRocks();
     const active = game.phase === 'playing';
     const animate = !this.reducedMotion && !['paused', 'paused-countdown'].includes(game.phase);
-    const light = roundLighting(game.elapsed);
+    const between = game.phase === 'intermission' ||
+      (game.phase === 'paused' && game.resumePhase === 'intermission');
+    const transition = between ? roundTransition(game.intermissionRemaining, game.round === RULES.rounds) : null;
+    const light = roundLighting(transition?.daylight || game.phase === 'finished' ? 0 : game.elapsed);
     this.sun.position.set(...light.position);
     this.sun.intensity = light.sunIntensity;
     this.sun.color.copy(this.daySun).lerp(this.duskSun, light.dusk);
@@ -553,6 +558,13 @@ export class ForestScene {
         acorn.children[0].rotation.y = time * 0.35 + i;
       });
     }
+    if (between && !this.returnPaths) {
+      this.returnPaths = game.players.map(player => returnPath(
+        { x: player.x, z: player.z },
+        { x: player.id === 0 ? -2 : RULES.width + 2, z: RULES.depth / 2 + 1.15 },
+        [...game.rocks, ...game.stumps],
+      ));
+    } else if (!between) this.returnPaths = null;
     for (const player of game.players) {
       const squirrel = this.squirrels[player.id];
       if (this.networked) {
@@ -563,15 +575,35 @@ export class ForestScene {
           (player.z - RULES.depth / 2 - squirrel.root.position.z) * blend;
         squirrel.root.position.y = 0.055;
       } else squirrel.root.position.set(player.x - 20, 0.055, player.z - RULES.depth / 2);
-      const intro = game.phase === 'countdown' || game.phase === 'intermission' ||
-        game.phase === 'paused-countdown' || (game.phase === 'paused' && ['countdown', 'intermission'].includes(game.resumePhase));
-      let entering = false;
+      const intro = game.phase === 'countdown' || game.phase === 'paused-countdown' ||
+        (game.phase === 'paused' && game.resumePhase === 'countdown') ||
+        transition?.stage === 'countdown' ||
+        (transition?.stage === 'fade-in' && game.round < RULES.rounds);
+      let scripted = false, scriptedMoving = false;
       let climb = 0;
       let climbPitch = 0;
-      if (intro && !this.reducedMotion) {
-        const remaining = game.phase === 'intermission' || game.resumePhase === 'intermission'
-          ? game.intermissionRemaining : game.countdown ?? 3;
-        const progress = THREE.MathUtils.clamp(1 - remaining / 3, 0, 1);
+      if ((between && !intro || game.phase === 'finished') && !this.reducedMotion) {
+        const progress = transition?.stage === 'returning' ? transition.progress : 1;
+        const run = THREE.MathUtils.clamp(progress / 0.6, 0, 1);
+        const rise = THREE.MathUtils.clamp((progress - 0.6) / 0.4, 0, 1);
+        const path = this.returnPaths?.[player.id];
+        const point = path ? pointOnPath(path, run) : {
+          x: player.id === 0 ? -2 : RULES.width + 2,
+          z: RULES.depth / 2 + 1.15, facing: Math.PI,
+        };
+        climb = THREE.MathUtils.smoothstep(rise, 0, 0.15);
+        climbPitch = -climb * Math.PI / 2;
+        squirrel.root.position.set(point.x - RULES.width / 2,
+          0.055 + rise * 6.2 + climb * 1.2, point.z - RULES.depth / 2);
+        const turn = THREE.MathUtils.smoothstep(run, 0.88, 1);
+        const angle = Math.atan2(Math.sin(Math.PI - point.facing), Math.cos(Math.PI - point.facing));
+        squirrel.rotation = point.facing + angle * turn;
+        scripted = true;
+        scriptedMoving = progress < 1;
+      } else if (intro && !this.reducedMotion) {
+        const remaining = between ? (transition.stage === 'countdown' ? game.intermissionRemaining : RULES.countdown)
+          : game.countdown ?? RULES.countdown;
+        const progress = THREE.MathUtils.clamp(1 - remaining / RULES.countdown, 0, 1);
         const side = player.id === 0 ? -1 : 1;
         const treeX = side * (RULES.width / 2 + 2);
         const descend = Math.min(1, progress / 0.56);
@@ -580,17 +612,19 @@ export class ForestScene {
         const turn = THREE.MathUtils.smoothstep(run, 0, 0.18);
         climb = 1 - turn;
         climbPitch = climb * Math.PI / 2;
-        squirrel.root.position.set(THREE.MathUtils.lerp(treeX, player.x - RULES.width / 2, run),
+        const start = playerStart(player.id);
+        squirrel.root.position.set(THREE.MathUtils.lerp(treeX, start.x - RULES.width / 2, run),
           0.055 + (1 - descend) * 6.2 + climb * 1.2, 1.15 * (1 - run));
-        entering = remaining <= 3;
+        scripted = true;
+        scriptedMoving = transition?.stage !== 'fade-in';
         squirrel.rotation = (side < 0 ? Math.PI / 2 : -Math.PI / 2) * turn;
       }
       const diff = Math.atan2(
         Math.sin(player.facing - squirrel.rotation),
         Math.cos(player.facing - squirrel.rotation),
       );
-      if (!entering) squirrel.rotation += diff * Math.min(1, dt * 14);
-      const moving = entering || (active && Math.hypot(player.vx, player.vz) > 0.3);
+      if (!scripted) squirrel.rotation += diff * Math.min(1, dt * 14);
+      const moving = scriptedMoving || (active && Math.hypot(player.vx, player.vz) > 0.3);
       poseSquirrel(squirrel, {
         dt, animate, moving, climb, climbPitch,
         frozen: ['paused', 'paused-countdown'].includes(game.phase),

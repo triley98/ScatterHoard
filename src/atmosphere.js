@@ -12,8 +12,8 @@ export function roundLighting(elapsed = 0) {
       25 + Math.sin(progress * Math.PI) * 10 - progress * 13,
       14,
     ],
-    sunIntensity: THREE.MathUtils.lerp(3.2, 0.7, dusk),
-    ambientIntensity: THREE.MathUtils.lerp(2.25, 1.1, dusk),
+    sunIntensity: THREE.MathUtils.lerp(3.2, 1.8, dusk),
+    ambientIntensity: THREE.MathUtils.lerp(2.25, 1.8, dusk),
     dusk,
   };
 }

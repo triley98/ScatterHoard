@@ -22,7 +22,7 @@ function giveAcorn(game, id, x = 8.5, z = 5.5) {
   assert.equal(player.carrying, true);
 }
 
-test('three rounds last exactly 60 seconds each, with 12 drops per round and five-second breaks', () => {
+test('three rounds last exactly 60 seconds each, with 12 drops per round and complete round transitions', () => {
   const game = makeGame();
   for (let round = 1; round <= 3; round++) {
     assert.equal(game.round, round);
@@ -40,12 +40,12 @@ test('three rounds last exactly 60 seconds each, with 12 drops per round and fiv
     assert.equal(game.roundResults.length, round);
     if (round < 3) {
       assert.equal(game.phase, 'intermission');
-      game.update(4.99, idle);
+      game.update(RULES.intermission - 0.01, idle);
       assert.equal(game.phase, 'intermission');
       game.update(0.01, idle);
       assert.equal(game.phase, 'playing');
       assert.equal(game.elapsed, 0);
-    }
+    } else game.update(RULES.ending, idle);
   }
   assert.equal(game.phase, 'finished');
   assert.equal(game.matchElapsed, 180);
@@ -314,7 +314,7 @@ test('pause freezes the clock, movement, drops, and ongoing digs; resume continu
 test('match end rejects further movement and digs; rematch clears all round state', () => {
   const game = makeGame();
   giveAcorn(game, 0);
-  game.update(RULES.duration * RULES.rounds + RULES.intermission * (RULES.rounds - 1), idle);
+  game.update(RULES.duration * RULES.rounds + RULES.intermission * (RULES.rounds - 1) + RULES.ending, idle);
   assert.equal(game.phase, 'finished');
   assert.equal(game.requestDig(0), false);
   const x = game.players[0].x;
@@ -351,7 +351,7 @@ test('fractional coordinates map to grid cells at edges and across the center li
   assert.equal(cellKey(cellAt(40, 15)), '39,14');
 });
 
-test('round transitions retain buried stashes but reset positions and clear all unburied acorns', () => {
+test('round transitions retain stashes and return positions, then reset positions before play', () => {
   const game = makeGame();
   giveAcorn(game, 0);
   game.requestDig(0);
@@ -360,13 +360,15 @@ test('round transitions retain buried stashes but reset positions and clear all 
   const board = game.buried;
   const rocks = JSON.stringify(game.rocks);
   const stumps = JSON.stringify(game.stumps);
+  const positions = game.players.map(p => [p.x, p.z]);
   game.update(60 - game.elapsed, idle);
   assert.equal(game.phase, 'intermission');
   assert.equal(game.acorns.length, 0);
-  assert.deepEqual(game.players.map(p => [p.x, p.z, p.carrying, p.vx, p.vz]),
-    [[8.5, 7.5, false, 0, 0], [31.5, 7.5, false, 0, 0]]);
+  assert.deepEqual(game.players.map(p => [p.x, p.z]), positions);
+  assert.ok(game.players.every(p => !p.carrying && !p.dig && p.vx === 0 && p.vz === 0));
   game.update(RULES.intermission, idle);
   assert.equal(game.round, 2);
+  assert.deepEqual(game.players.map(p => [p.x, p.z]), [[8.5, 7.5], [31.5, 7.5]]);
   assert.equal(game.buried, board);
   assert.deepEqual(game.scores, [1, 0]);
   assert.equal(game.acorns.length, 1);
@@ -426,7 +428,7 @@ test('round breaks freeze movement and digging, pause cleanly, and preserve rema
   const x = game.players[0].x;
   game.pause();
   game.update(20, [{ x: 1, z: 0 }, idle[1]]);
-  assert.equal(game.intermissionRemaining, 5);
+  assert.equal(game.intermissionRemaining, RULES.intermission);
   game.resume();
   game.update(RULES.intermission, [{ x: 1, z: 0 }, idle[1]]);
   assert.equal(game.players[0].x, x);
@@ -459,6 +461,9 @@ test('only the final board decides the match and each round keeps its own score 
   game.update(RULES.intermission + RULES.duration - 0.5, idle);
   game.applyPowerup(game.players[0], 'speed-boost');
   game.update(0.5, idle);
+  assert.equal(game.phase, 'intermission');
+  assert.equal(game.intermissionRemaining, RULES.ending);
+  game.update(RULES.ending, idle);
   assert.equal(game.phase, 'finished');
   assert.equal(game.players[0].effect, null);
   assert.equal(game.winner, 1);

@@ -33,8 +33,8 @@ test('daylight dims only over the last fifteen seconds and remains readable', ()
     assert.ok(current.dusk > previous.dusk);
     previous = current;
   }
-  assert.ok(Math.abs(previous.sunIntensity - 0.7) < 1e-8);
-  assert.ok(Math.abs(previous.ambientIntensity - 1.1) < 1e-8);
+  assert.ok(Math.abs(previous.sunIntensity - 1.8) < 1e-8);
+  assert.ok(Math.abs(previous.ambientIntensity - 1.8) < 1e-8);
   assert.equal(previous.dusk, 1);
   assert.deepEqual(roundLighting(1000), roundLighting(RULES.duration));
 });

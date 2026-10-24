@@ -4,6 +4,7 @@ import { ForestScene } from './scene.js';
 import { WoodlandAudio } from './audio.js';
 import { OnlineSession, lobbyBase, defaultLobby } from './online.js';
 import { PlayerBadges, badgeIcon } from './badges.js';
+import { roundTransition } from './round-transition.js';
 
 const $ = (id) => document.getElementById(id);
 const arrowIcon =
@@ -11,6 +12,9 @@ const arrowIcon =
 const game = new Game();
 const audio = new WoodlandAudio();
 const keys = new Set();
+// Held controls survive clearInputs(), so repeat events cannot scroll the page
+// or activate a newly focused dialog button when a round ends.
+const capturedKeys = new Set();
 const gameKeys = new Set([
   'KeyW',
   'KeyA',
@@ -89,8 +93,8 @@ function beginMatch() {
   game.phase = 'countdown';
   forest.reset();
   badges.clear();
-  countdown = 3;
-  lastCountdownNumber = 3;
+  countdown = RULES.countdown;
+  lastCountdownNumber = RULES.countdown;
   $('countdown-number').textContent = '3';
   $('countdown-overlay').hidden = false;
   $('game-canvas').focus({ preventScroll: true });
@@ -231,11 +235,22 @@ function syncSound() {
 syncSound();
 
 window.addEventListener('keydown', (event) => {
+  if (capturedKeys.has(event.code) && event.repeat) {
+    event.preventDefault();
+    return;
+  }
   if (anyDialogOpen() || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.code === 'Escape') {
     event.preventDefault();
     pauseGame();
     return;
+  }
+  if (event.target instanceof Element && event.target.closest(
+    'button, a, input, textarea, select, [contenteditable]:not([contenteditable="false"])',
+  )) return;
+  if (event.code === 'Space' || event.code === 'Enter') {
+    event.preventDefault();
+    capturedKeys.add(event.code);
   }
   if (
     !['playing', 'countdown'].includes(game.phase) ||
@@ -243,6 +258,7 @@ window.addEventListener('keydown', (event) => {
   )
     return;
   event.preventDefault();
+  capturedKeys.add(event.code);
   keys.add(event.code);
   if (!event.repeat && game.phase === 'playing') {
     if (online) {
@@ -253,8 +269,12 @@ window.addEventListener('keydown', (event) => {
     }
   }
 });
-window.addEventListener('keyup', (event) => keys.delete(event.code));
+window.addEventListener('keyup', (event) => {
+  if (capturedKeys.delete(event.code)) event.preventDefault();
+  keys.delete(event.code);
+});
 window.addEventListener('blur', () => {
+  capturedKeys.clear();
   clearInputs();
   if (!online) pauseGame();
 });
@@ -499,14 +519,14 @@ function syncUI() {
             : phase === 'countdown'
               ? 'The scramble starts soon'
               : 'Match paused';
-  const between = phase === 'intermission';
+  const between = phase === 'intermission' || (phase === 'paused' && game.resumePhase === 'intermission');
+  const transition = between ? roundTransition(game.intermissionRemaining, game.round === RULES.rounds) : null;
   $('countdown-overlay').hidden = ![
     'countdown',
     'paused-countdown',
-    'intermission',
-  ].includes(phase);
+  ].includes(phase) && transition?.stage !== 'countdown';
   $('countdown-label').textContent = between
-    ? `ROUND ${game.round + 1} OF ${RULES.rounds} · ${game.intermissionRemaining > 3 ? 'A MOMENT TO REGROUP' : 'PAWS AT THE READY'}`
+    ? `ROUND ${game.round + 1} OF ${RULES.rounds} · PAWS AT THE READY`
     : 'ROUND 1 OF 3 · PAWS AT THE READY';
   $('countdown-number').textContent = Math.max(
     1,
@@ -633,6 +653,11 @@ function frame(now) {
     }
   } else game.update(dt, inputs());
   handleEvents();
+  const between = game.phase === 'intermission' ||
+    (game.phase === 'paused' && game.resumePhase === 'intermission');
+  const transition = between ? roundTransition(game.intermissionRemaining, game.round === RULES.rounds) : null;
+  $('round-fade').style.opacity = String(transition?.opacity ?? 0);
+  $('round-fade').dataset.stage = transition?.stage ?? '';
   if (now >= nextUI) {
     syncUI();
     nextUI = now + 80;
