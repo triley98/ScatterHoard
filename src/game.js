@@ -9,7 +9,17 @@ export const RULES = Object.freeze({
   pickupRadius: 0.72,
   digDuration: 0.55,
   playerRadius: 0.32,
+  powerupChance: 0.1,
+  effectDuration: 6,
 });
+
+export const POWERUPS = [
+  'acorn-rain',
+  'speed-boost',
+  'friendly-corvid',
+  'slowdown',
+  'hungry-corvid',
+];
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 export const cellAt = (x, z) => ({
@@ -30,6 +40,8 @@ function newPlayer(id) {
     dig: null,
     facing: 0,
     buried: 0,
+    effect: null,
+    effectUntil: 0,
   };
 }
 
@@ -50,6 +62,7 @@ export class Game {
     this.scores = [0, 0];
     this.events = [];
     this.drops = 0;
+    this.bonusDrops = 0;
     this.nextId = 0;
     this.pickupPriority = 0;
   }
@@ -82,11 +95,14 @@ export class Game {
     return this.events.splice(0);
   }
 
-  dropAcorn() {
+  dropAcorn(side = null, bonus = false) {
     // Keep drops in the playable interior; retry occupied cells without unbounded loops.
     let x, z;
     for (let attempt = 0; attempt < 50; attempt++) {
-      x = 1 + this.random() * (RULES.width - 2);
+      x =
+        side === null
+          ? 1 + this.random() * (RULES.width - 2)
+          : side * RULES.half + 1 + this.random() * (RULES.half - 2);
       z = 0.8 + this.random() * (RULES.depth - 1.6);
       const key = cellKey(cellAt(x, z));
       if (
@@ -97,7 +113,8 @@ export class Game {
     }
     const acorn = { id: this.nextId++, x, z, born: this.elapsed };
     this.acorns.push(acorn);
-    this.drops++;
+    if (bonus) this.bonusDrops++;
+    else this.drops++;
     this.events.push({ type: 'drop', acorn: { ...acorn } });
     return acorn;
   }
@@ -106,17 +123,18 @@ export class Game {
     if (this.phase !== 'playing') return false;
     const player = this.players[id];
     if (!player || player.dig) return false;
-    if (!player.carrying) {
-      this.events.push({ type: 'hint', player: id, reason: 'empty' });
-      return false;
-    }
     const cell = cellAt(player.x, player.z);
     const key = cellKey(cell);
-    if (this.buried.has(key) || this.players.some((p) => p.dig?.key === key)) {
-      this.events.push({ type: 'hint', player: id, reason: 'occupied' });
+    if (this.players.some((p) => p.dig?.key === key)) {
+      this.events.push({ type: 'hint', player: id, reason: 'busy' });
       return false;
     }
-    player.dig = { ...cell, key, elapsed: 0 };
+    player.dig = {
+      ...cell,
+      key,
+      elapsed: 0,
+      mode: player.carrying ? 'bury' : 'search',
+    };
     player.vx = 0;
     player.vz = 0;
     this.events.push({ type: 'dig', player: id });
@@ -151,6 +169,8 @@ export class Game {
     }
 
     for (const player of this.players) {
+      if (player.effect && this.elapsed >= player.effectUntil)
+        player.effect = null;
       let { x = 0, z = 0 } = inputs[player.id] ?? {};
       const magnitude = Math.hypot(x, z);
       if (magnitude > 1) {
@@ -169,8 +189,14 @@ export class Game {
         }
       }
       const maxChange = RULES.acceleration * dt;
-      const dx = x * RULES.speed - player.vx;
-      const dz = z * RULES.speed - player.vz;
+      const multiplier =
+        player.effect === 'speed-boost'
+          ? 1.6
+          : player.effect === 'slowdown'
+            ? 0.6
+            : 1;
+      const dx = x * RULES.speed * multiplier - player.vx;
+      const dz = z * RULES.speed * multiplier - player.vz;
       const change = Math.hypot(dx, dz);
       const blend = change > maxChange ? maxChange / change : 1;
       player.vx += dx * blend;
@@ -229,6 +255,26 @@ export class Game {
 
   finishDig(player) {
     const cell = player.dig;
+    player.dig = null;
+    if (cell.mode === 'search') {
+      const acorn = this.buried.get(cell.key);
+      if (acorn && acorn.player !== player.id) {
+        this.buried.delete(cell.key);
+        this.scores[acorn.territory]--;
+        player.carrying = true;
+        this.events.push({ type: 'unearth', player: player.id });
+      } else this.events.push({ type: 'miss', player: player.id });
+      if (this.random() < RULES.powerupChance)
+        this.applyPowerup(
+          player,
+          POWERUPS[Math.floor(this.random() * POWERUPS.length)],
+        );
+      return;
+    }
+    if (this.buried.has(cell.key)) {
+      this.events.push({ type: 'hint', player: player.id, reason: 'occupied' });
+      return;
+    }
     const territory = territoryFor(cell.col);
     this.buried.set(cell.key, {
       col: cell.col,
@@ -239,13 +285,67 @@ export class Game {
     this.scores[territory]++;
     player.buried++;
     player.carrying = false;
-    player.dig = null;
     this.events.push({
       type: 'bury',
       player: player.id,
       territory,
-      col: cell.col,
-      row: cell.row,
     });
+  }
+
+  applyPowerup(player, kind) {
+    let stolen = false;
+    let victim = null;
+    if (kind === 'acorn-rain')
+      for (let i = 0; i < 3; i++) this.dropAcorn(player.id, true);
+    if (kind === 'speed-boost' || kind === 'slowdown') {
+      player.effect = kind;
+      player.effectUntil = this.elapsed + RULES.effectDuration;
+    }
+    if (kind === 'friendly-corvid' || kind === 'hungry-corvid') {
+      victim = kind === 'friendly-corvid' ? 1 - player.id : player.id;
+      const options = [...this.buried.entries()].filter(
+        ([, acorn]) => acorn.territory === victim,
+      );
+      if (options.length) {
+        const [key] = options[Math.floor(this.random() * options.length)];
+        this.buried.delete(key);
+        this.scores[victim]--;
+        stolen = true;
+      }
+    }
+    this.events.push({
+      type: 'powerup',
+      player: player.id,
+      kind,
+      stolen,
+      victim,
+    });
+  }
+
+  // Hidden cell coordinates, ownership, reservations, and RNG never leave the authority.
+  snapshot() {
+    return {
+      phase: this.phase,
+      elapsed: this.elapsed,
+      nextDrop: this.nextDrop,
+      scores: [...this.scores],
+      drops: this.drops,
+      bonusDrops: this.bonusDrops,
+      acorns: this.acorns.map((a) => ({ ...a })),
+      players: this.players.map(
+        ({ id, x, z, vx, vz, carrying, facing, effect, effectUntil, dig }) => ({
+          id,
+          x,
+          z,
+          vx,
+          vz,
+          carrying,
+          facing,
+          effect,
+          effectUntil,
+          dig: dig ? { elapsed: dig.elapsed, mode: dig.mode } : null,
+        }),
+      ),
+    };
   }
 }

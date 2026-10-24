@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f5f3eb" />
     <meta
       name="description"
-      content="Two squirrels. One minute. A friendly local multiplayer scramble to collect and bury acorns."
+      content="Two squirrels. One minute. A friendly multiplayer scramble to collect and bury acorns."
     />
     <title>ScatterHoard — A little woodland rivalry</title>
     <link rel="icon" type="image/svg+xml" href="/acorn.svg" />
@@ -21,7 +21,8 @@
           ></a
         >
         <div class="header-right">
-          <span class="local-badge"><span></span> A LITTLE LOCAL RIVALRY</span
+          <span class="local-badge"
+            ><span></span> A LITTLE WOODLAND RIVALRY</span
           ><button class="text-button" id="help-button">
             <span class="help-icon">?</span> How to play</button
           ><button
@@ -50,6 +51,30 @@
           </div>
         </section>
 
+        <div class="play-modes" aria-label="Play mode">
+          <div>
+            <button
+              id="local-mode"
+              class="mode-button active"
+              aria-pressed="true"
+            >
+              Same keyboard</button
+            ><button id="online-mode" class="mode-button" aria-pressed="false">
+              Online with a friend
+            </button>
+          </div>
+          <span id="connection-status" role="status"
+            >Two squirrels. One screen.</span
+          >
+        </div>
+        <div class="room-bar" id="room-bar" hidden>
+          <span id="room-description"></span>
+          <div>
+            <button id="copy-invite" class="text-button">
+              Copy invite link</button
+            ><button id="leave-room" class="text-button">Leave room</button>
+          </div>
+        </div>
         <section class="game-shell" aria-label="ScatterHoard game">
           <div class="scoreboard">
             <div class="player-score red-score">
@@ -58,6 +83,7 @@
                 <span>PLAYER 01</span>
                 <h2>Red <span class="player-nickname">The go-getter</span></h2>
                 <div class="carry-status" id="red-carry">Paws empty</div>
+                <div class="effect-status" id="red-effect"></div>
               </div>
               <div class="score-count">
                 <strong id="red-score">0</strong><span>BURIED</span>
@@ -88,6 +114,7 @@
                   Ash <span class="player-nickname">The quiet schemer</span>
                 </h2>
                 <div class="carry-status" id="grey-carry">Paws empty</div>
+                <div class="effect-status" id="grey-effect"></div>
               </div>
               <div class="score-count">
                 <strong id="grey-score">0</strong><span>BURIED</span>
@@ -96,6 +123,16 @@
           </div>
 
           <div class="arena" id="arena">
+            <aside
+              class="powerup-notice"
+              id="powerup-notice"
+              role="status"
+              aria-live="polite"
+              hidden
+            >
+              <strong id="powerup-title"></strong
+              ><span id="powerup-description"></span>
+            </aside>
             <canvas
               id="game-canvas"
               tabindex="0"
@@ -198,7 +235,7 @@
               <span class="control-verb">MOVE</span
               ><span class="control-divider"></span
               ><kbd class="wide-key">space</kbd
-              ><span class="control-verb">BURY</span>
+              ><span class="control-verb">DIG</span>
             </div>
           </div>
           <div class="control-card grey-controls">
@@ -215,17 +252,17 @@
               <span class="control-verb">MOVE</span
               ><span class="control-divider"></span
               ><kbd class="wide-key">enter ↵</kbd
-              ><span class="control-verb">BURY</span>
+              ><span class="control-verb">DIG</span>
             </div>
           </div>
           <div class="quick-rules">
             <span class="eyebrow">THE SHORT VERSION</span>
             <p>
-              Run over an acorn to pick it up. Bury it in an empty square on
-              your half. Most buried when time’s up wins.
+              Bury acorns on your half and remember your hiding spots. Dig
+              empty-handed to steal an opponent’s stash — or uncover a surprise.
             </p>
             <span class="rule-footnote"
-              >One acorn per pawful. One acorn per square.</span
+              >Hidden stashes. A 10% powerup chance on every search.</span
             >
           </div>
         </section>
@@ -238,7 +275,7 @@
               ><button data-key="KeyS" aria-label="Red down">↓</button
               ><button data-key="KeyD" aria-label="Red right">→</button>
             </div>
-            <button class="touch-bury" data-bury="0">Bury</button>
+            <button class="touch-bury" data-bury="0">Dig</button>
           </div>
           <div class="touch-player" data-player="1">
             <span>ASH</span>
@@ -248,7 +285,7 @@
               ><button data-key="ArrowDown" aria-label="Ash down">↓</button
               ><button data-key="ArrowRight" aria-label="Ash right">→</button>
             </div>
-            <button class="touch-bury" data-bury="1">Bury</button>
+            <button class="touch-bury" data-bury="1">Dig</button>
           </div>
         </div>
       </main>
@@ -261,6 +298,57 @@
       </footer>
     </div>
 
+    <dialog id="lobby-dialog" aria-labelledby="lobby-title">
+      <button
+        class="dialog-close"
+        data-close="lobby-dialog"
+        aria-label="Close online lobby"
+      >
+        ×
+      </button>
+      <span class="eyebrow">A FRIEND IN ANOTHER PATCH</span>
+      <h2 id="lobby-title">Far apart.<br /><em>Same forest.</em></h2>
+      <p>
+        Host a clearing and share its six-character code. You’re Red; your
+        friend plays Ash.
+      </p>
+      <button id="host-room" class="primary-button dialog-primary">
+        Host a clearing
+      </button>
+      <div class="lobby-divider">OR JOIN A FRIEND</div>
+      <form id="join-form">
+        <label for="room-code">Room code</label>
+        <div class="join-row">
+          <input
+            id="room-code"
+            name="room"
+            maxlength="6"
+            autocomplete="off"
+            autocapitalize="characters"
+            placeholder="ABC234"
+            pattern="[A-Za-z2-9]{6}"
+            required
+            aria-describedby="lobby-error"
+          /><button class="primary-button" type="submit" id="join-room">
+            Join clearing
+          </button>
+        </div>
+      </form>
+      <details id="lobby-settings">
+        <summary>Lobby server</summary>
+        <label for="lobby-server">Cloudflare website address</label
+        ><input
+          id="lobby-server"
+          type="url"
+          placeholder="https://scatterhoard.your-name.workers.dev"
+        />
+        <p>
+          The Cloudflare-hosted game connects automatically. If you’re playing
+          on another website, use the host’s Cloudflare address.
+        </p>
+      </details>
+      <p id="lobby-error" class="lobby-error" role="alert"></p>
+    </dialog>
     <dialog id="help-dialog" aria-labelledby="help-title">
       <button
         class="dialog-close"
@@ -274,38 +362,42 @@
         <div>
           <span>01</span>
           <p>
-            <strong>Scurry freely.</strong> Red uses WASD. Ash uses the arrow
-            keys. You can roam anywhere on the board.
+            <strong>Scurry freely.</strong> Red uses WASD and Space to dig. Ash
+            uses arrows and Enter. Online, either set controls your own
+            squirrel.
           </p>
         </div>
         <div>
           <span>02</span>
           <p>
-            <strong>Find your next acorn.</strong> Walk over one to pick it up.
-            You can carry one at a time. One drops at the start, then every 5
-            seconds.
+            <strong>Keep your stash secret.</strong> Carry one acorn at a time.
+            Stand still and dig to bury it. The invisible 40 × 10 grid keeps one
+            acorn per spot, with no marks left behind.
           </p>
         </div>
         <div>
           <span>03</span>
           <p>
-            <strong>Put down roots.</strong> Press Space (Red) or Enter (Ash) to
-            bury your acorn in the highlighted square. Keep still for a short
-            dig.
+            <strong>Guess. Dig. Steal.</strong> Dig with empty paws to search.
+            Find an opponent’s buried acorn, carry it home, and bury it again.
+            Their patch loses a point as soon as it’s dug up.
           </p>
         </div>
         <div>
           <span>04</span>
           <p>
-            <strong>Protect your patch.</strong> Every square holds one acorn. A
-            burial scores for the side it’s on: Red’s left half or Ash’s right
-            half.
+            <strong>The forest has surprises.</strong> Every completed search
+            has a 10% powerup chance: three extra acorns, six seconds of speed,
+            a helpful corvid, six seconds of slowdown, or a corvid stealing from
+            your own patch.
           </p>
         </div>
       </div>
       <div class="help-note">
-        The round lasts 60 seconds. Most acorns on your half wins. Equal scores
-        mean a draw. Press Esc to pause.
+        A corvid steals one acorn from the chosen patch if it can find one.
+        Movement cancels digging. Most acorns on your half after 60 seconds
+        wins; ties draw. Online rounds keep going while you open menus. Both
+        players must be ready for a round or rematch.
       </div>
       <button class="primary-button dialog-primary" data-close="help-dialog">
         Got it. Let’s go.

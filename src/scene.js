@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RULES, cellAt, cellKey } from './game.js';
+import { RULES } from './game.js';
 
 const colors = {
   red: 0xb6653e,
@@ -239,42 +239,12 @@ export class ForestScene {
     sun.shadow.radius = 3;
     this.scene.add(sun);
     this.acornMeshes = new Map();
-    this.buriedMeshes = new Map();
+    this.birds = [];
     this.particles = [];
     this.makeLandscape();
     this.makeBoard();
     this.squirrels = [makeSquirrel(0), makeSquirrel(1)];
     for (const squirrel of this.squirrels) this.scene.add(squirrel.root);
-    this.selectors = [0, 1].map((id) => {
-      const group = new THREE.Group();
-      const color = id === 0 ? 0xf5bf87 : 0xe2efcd;
-      const outline = new THREE.LineSegments(
-        new THREE.EdgesGeometry(new THREE.PlaneGeometry(0.91, 0.91)),
-        new THREE.LineBasicMaterial({
-          color,
-          transparent: true,
-          opacity: 0.95,
-        }),
-      );
-      outline.rotation.x = -Math.PI / 2;
-      group.add(outline);
-      const fill = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.91, 0.91),
-        new THREE.MeshBasicMaterial({
-          color,
-          transparent: true,
-          opacity: 0.22,
-          depthWrite: false,
-        }),
-      );
-      fill.rotation.x = -Math.PI / 2;
-      fill.position.y = -0.003;
-      group.add(fill);
-      group.position.y = 0.065;
-      group.visible = false;
-      this.scene.add(group);
-      return group;
-    });
     this.demoAcorns = new THREE.Group();
     for (const [x, z] of [
       [-14, -1.5],
@@ -338,7 +308,7 @@ export class ForestScene {
         geometries.lowSphere,
         grassMats[i % grassMats.length],
         [x, -0.74, z],
-        [size * 1.8, 0.18, size],
+        [size * 0.8, 0.3, size * 0.65],
         this.scene,
       );
       patch.castShadow = false;
@@ -364,23 +334,19 @@ export class ForestScene {
         }
       }
     }
-    const trees = [
-      [-23, -5, 4.4],
-      [-20, -9, 4.5],
-      [-17, -10.5, 3.5],
-      [-12, -11.5, 4],
-      [-5, -12, 3.5],
-      [3, -12, 4.4],
-      [12, -11, 3.8],
-      [18, -9.7, 4.5],
-      [23, -7, 5],
-      [25, 0, 3.7],
-      [-25, 1, 3.8],
-      [-24, 8, 4],
-      [24, 9, 4.7],
-      [-15, 12, 3.6],
-      [17, 13, 3.6],
-    ];
+    const trees = [];
+    for (let i = 0; i < 22; i++) {
+      trees.push([-25 + i * 2.4, -7.2 - random() * 2.2, 2.7 + random() * 2]);
+      if (i % 2 === 0) trees.push([-25 + i * 2.4, -11.5, 3.7 + random() * 2.5]);
+    }
+    for (const side of [-1, 1])
+      for (let i = 0; i < 6; i++)
+        trees.push([
+          side * (22 + random() * 2),
+          -5 + i * 2.8,
+          2.4 + random() * 1.5,
+        ]);
+    trees.push([-18, 8, 2.1], [-10, 9, 2.2], [11, 8.7, 2.5], [19, 8.4, 2.3]);
     for (const [x, z, h] of trees) {
       const tree = new THREE.Group();
       tree.position.set(x, -0.8, z);
@@ -460,62 +426,14 @@ export class ForestScene {
       null,
       this.scene,
     );
-    const random = seededRandom(14);
-    const tileGeometry = new THREE.PlaneGeometry(0.994, 0.994);
-    tileGeometry.rotateX(-Math.PI / 2);
-    const tiles = new THREE.InstancedMesh(
-      tileGeometry,
-      material(0xffffff),
-      RULES.width * RULES.depth,
+    const turf = mesh(
+      new THREE.PlaneGeometry(RULES.width, RULES.depth),
+      material(0x718451),
+      [0, 0.03, 0],
+      null,
+      this.scene,
     );
-    const dummy = new THREE.Object3D();
-    const color = new THREE.Color();
-    for (let col = 0; col < RULES.width; col++) {
-      for (let row = 0; row < RULES.depth; row++) {
-        const index = col * RULES.depth + row;
-        dummy.position.set(col - 19.5, 0.025, row - 4.5);
-        dummy.updateMatrix();
-        tiles.setMatrixAt(index, dummy.matrix);
-        color.set(col < 20 ? 0x84955f : 0x7a9464);
-        color.multiplyScalar(
-          0.94 + ((col + row) % 2) * 0.045 + random() * 0.035,
-        );
-        tiles.setColorAt(index, color);
-      }
-    }
-    tiles.receiveShadow = true;
-    this.scene.add(tiles);
-    const vertices = [];
-    for (let x = -20; x <= 20; x++) vertices.push(x, 0.035, -5, x, 0.035, 5);
-    for (let z = -5; z <= 5; z++) vertices.push(-20, 0.035, z, 20, 0.035, z);
-    const lines = new THREE.BufferGeometry();
-    lines.setAttribute(
-      'position',
-      new THREE.Float32BufferAttribute(vertices, 3),
-    );
-    this.scene.add(
-      new THREE.LineSegments(
-        lines,
-        new THREE.LineBasicMaterial({
-          color: 0x415b34,
-          transparent: true,
-          opacity: 0.22,
-        }),
-      ),
-    );
-    for (let z = -4.8; z < 5; z += 0.7) {
-      const dash = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.06, 0.35),
-        new THREE.MeshBasicMaterial({
-          color: 0xe3dfb3,
-          transparent: true,
-          opacity: 0.7,
-        }),
-      );
-      dash.rotation.x = -Math.PI / 2;
-      dash.position.set(0, 0.045, z);
-      this.scene.add(dash);
-    }
+    turf.rotation.x = -Math.PI / 2;
     mesh(
       new THREE.BoxGeometry(19.9, 0.035, 0.075),
       material(0xd5976a),
@@ -590,9 +508,9 @@ export class ForestScene {
 
   reset() {
     for (const object of this.acornMeshes.values()) this.removeGroup(object);
-    for (const object of this.buriedMeshes.values()) this.removeGroup(object);
+    for (const bird of this.birds) this.removeGroup(bird.root);
     this.acornMeshes.clear();
-    this.buriedMeshes.clear();
+    this.birds = [];
     for (const particle of this.particles) this.removeGroup(particle.mesh);
     this.particles = [];
   }
@@ -613,73 +531,41 @@ export class ForestScene {
   }
 
   onEvent(event) {
-    if (event.type !== 'bury') return;
-    const { col, row, territory } = event;
-    const group = new THREE.Group();
-    group.position.set(col - 19.5, 0.06, row - 4.5);
-    mesh(
-      geometries.sphere,
-      material(0x5a4730),
-      [0, -0.018, 0],
-      [0.35, 0.065, 0.29],
-      group,
-    );
-    mesh(
-      geometries.sphere,
-      material(0x9c7850),
-      [0, 0.016, 0],
-      [0.27, 0.07, 0.22],
-      group,
-    );
-    const stem = mesh(
-      geometries.cylinder,
-      material(0xd3c39a),
-      [0, 0.12, 0],
-      [0.025, 0.24, 0.025],
-      group,
-    );
-    stem.rotation.z = -0.1;
-    for (const side of [-1, 1]) {
-      const leaf = mesh(
-        geometries.sphere,
-        material(territory === 0 ? 0xe5b079 : 0xd7e3b7),
-        [side * 0.09, 0.23, 0],
-        [0.13, 0.035, 0.065],
-        group,
-      );
-      leaf.rotation.z = side * 0.35;
-    }
-    const outline = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.88, 0.88),
-      new THREE.MeshBasicMaterial({
-        color: territory === 0 ? 0xeab283 : 0xe0e9bc,
-        transparent: true,
-        opacity: 0.15,
-        depthWrite: false,
-      }),
-    );
-    outline.rotation.x = -Math.PI / 2;
-    outline.position.y = -0.005;
-    group.add(outline);
-    this.scene.add(group);
-    this.buriedMeshes.set(`${col},${row}`, group);
+    // Digging never changes the surface or leaves a marker, including during a corvid theft.
     if (this.reducedMotion) return;
-    for (let i = 0; i < 9; i++) {
-      const piece = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.05 + Math.random() * 0.05),
-        material(0xb89a65),
-      );
-      piece.position.copy(group.position);
-      piece.position.y += 0.15;
-      this.scene.add(piece);
-      this.particles.push({
-        mesh: piece,
-        vx: (Math.random() - 0.5) * 2,
-        vy: 1 + Math.random() * 2,
-        vz: (Math.random() - 0.5) * 2,
-        life: 0.6,
-      });
-    }
+    if (event.type !== 'powerup' || !event.kind.includes('corvid')) return;
+    const root = new THREE.Group();
+    const feather = material(0x26312d);
+    mesh(geometries.sphere, feather, [0, 0, 0], [0.35, 0.22, 0.65], root);
+    mesh(geometries.sphere, feather, [0, 0.15, 0.5], [0.23, 0.23, 0.24], root);
+    const beak = mesh(
+      geometries.cone,
+      material(0x766e4f),
+      [0, 0.12, 0.8],
+      [0.1, 0.3, 0.1],
+      root,
+    );
+    beak.rotation.x = Math.PI / 2;
+    const wings = [-1, 1].map((side) =>
+      mesh(
+        geometries.sphere,
+        feather,
+        [side * 0.7, 0, -0.05],
+        [0.85, 0.055, 0.37],
+        root,
+      ),
+    );
+    const nut = makeAcorn(0.8);
+    nut.position.set(0, -0.35, 0.55);
+    nut.visible = event.stolen;
+    root.add(nut);
+    this.scene.add(root);
+    this.birds.push({
+      root,
+      wings,
+      age: 0,
+      target: event.victim === 0 ? -10 : 10,
+    });
   }
 
   render(time, dt) {
@@ -695,7 +581,14 @@ export class ForestScene {
     }
     for (const player of game.players) {
       const squirrel = this.squirrels[player.id];
-      squirrel.root.position.set(player.x - 20, 0.055, player.z - 5);
+      if (this.networked) {
+        const blend = 1 - Math.exp(-dt * 25);
+        squirrel.root.position.x +=
+          (player.x - 20 - squirrel.root.position.x) * blend;
+        squirrel.root.position.z +=
+          (player.z - 5 - squirrel.root.position.z) * blend;
+        squirrel.root.position.y = 0.055;
+      } else squirrel.root.position.set(player.x - 20, 0.055, player.z - 5);
       const diff = Math.atan2(
         Math.sin(player.facing - squirrel.rotation),
         Math.cos(player.facing - squirrel.rotation),
@@ -732,14 +625,6 @@ export class ForestScene {
       squirrel.held.visible = player.carrying && !player.dig;
       squirrel.marker.position.y =
         2.5 + (animate ? Math.sin(time * 2 + player.id) * 0.08 : 0);
-      const cell = cellAt(player.x, player.z);
-      const selector = this.selectors[player.id];
-      selector.visible = active && player.carrying;
-      selector.position.x = cell.col - 19.5;
-      selector.position.z = cell.row - 4.5;
-      const occupied = game.buried.has(cellKey(cell));
-      const color = occupied ? 0xe18d6f : player.id === 0 ? 0xf5bf87 : 0xe2efcd;
-      selector.children.forEach((child) => child.material.color.setHex(color));
     }
     const liveIds = new Set(game.acorns.map((a) => a.id));
     for (const [id, object] of this.acornMeshes) {
@@ -774,6 +659,24 @@ export class ForestScene {
           this.removeGroup(p.mesh);
           this.particles.splice(i, 1);
         }
+      }
+    }
+    for (let i = this.birds.length - 1; i >= 0; i--) {
+      const bird = this.birds[i];
+      if (animate) bird.age += dt;
+      const t = bird.age / 3;
+      // A decorative swoop over the patch; its path does not disclose the stolen cell.
+      bird.root.position.set(
+        bird.target + Math.sin(t * Math.PI * 2) * 5,
+        1.4 + Math.abs(t - 0.5) * 13,
+        -10 + t * 22,
+      );
+      bird.wings.forEach((wing, side) => {
+        wing.rotation.z = (side ? -1 : 1) * Math.sin(time * 17) * 0.55;
+      });
+      if (t >= 1) {
+        this.removeGroup(bird.root);
+        this.birds.splice(i, 1);
       }
     }
     this.renderer.render(this.scene, this.camera);

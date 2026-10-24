@@ -97,13 +97,157 @@ test('a cell accepts only one acorn, including simultaneous dig attempts', () =>
   assert.equal(game.requestDig(1), false);
   assert.equal(game.players[1].carrying, true);
   game.update(RULES.digDuration, idle);
-  assert.equal(game.requestDig(1), false);
+  assert.equal(game.requestDig(1), true); // Occupancy is discovered only after a full dig.
+  game.update(RULES.digDuration, idle);
+  assert.equal(game.players[1].carrying, true);
   assert.equal(game.buried.size, 1);
   assert.deepEqual(game.scores, [1, 0]);
   game.players[1].x = 9.1;
   assert.equal(game.requestDig(1), true);
   game.update(RULES.digDuration, idle);
   assert.deepEqual(game.scores, [2, 0]);
+});
+
+test('empty-pawed digging steals an opponent’s hidden acorn and removes its old score', () => {
+  const game = makeGame();
+  giveAcorn(game, 1, 27.5, 3.5);
+  game.requestDig(1);
+  game.update(RULES.digDuration, idle);
+  assert.deepEqual(game.scores, [0, 1]);
+  Object.assign(game.players[0], { x: 27.5, z: 3.5 });
+  assert.equal(game.requestDig(0), true);
+  game.update(RULES.digDuration, idle);
+  assert.equal(game.players[0].carrying, true);
+  assert.equal(game.buried.size, 0);
+  assert.deepEqual(game.scores, [0, 0]);
+  Object.assign(game.players[0], { x: 12.2, z: 3.4 });
+  game.requestDig(0);
+  game.update(RULES.digDuration, idle);
+  assert.deepEqual(game.scores, [1, 0]);
+  assert.equal(game.players[0].carrying, false);
+});
+
+test('search misses do not take one’s own buried acorns', () => {
+  const game = makeGame();
+  giveAcorn(game, 0);
+  game.requestDig(0);
+  game.update(RULES.digDuration, idle);
+  game.requestDig(0);
+  game.update(RULES.digDuration, idle);
+  assert.equal(game.players[0].carrying, false);
+  assert.deepEqual(game.scores, [1, 0]);
+  assert.ok(game.drainEvents().some((e) => e.type === 'miss'));
+});
+
+test('powerups roll only after completed empty-handed digs, at the exact 10% threshold', () => {
+  const game = makeGame();
+  let rolls = 0;
+  game.random = () => {
+    rolls++;
+    return 0.5;
+  };
+  game.requestDig(0);
+  game.update(0.2, idle);
+  assert.equal(rolls, 0);
+  game.update(0.1, [{ x: 1, z: 0 }, idle[1]]);
+  assert.equal(rolls, 0);
+  game.update(0.3, idle);
+  for (const [chance, expected] of [
+    [0.099999, true],
+    [0.1, false],
+  ]) {
+    const values = [chance, 0.3];
+    game.random = () => values.shift() ?? 0.5;
+    game.drainEvents();
+    game.requestDig(0);
+    game.update(RULES.digDuration, idle);
+    assert.equal(
+      game.drainEvents().some((e) => e.type === 'powerup'),
+      expected,
+    );
+  }
+});
+
+test('all five outcomes are selected, with three bonus drops restricted to the finder’s half', () => {
+  const kinds = [
+    'acorn-rain',
+    'speed-boost',
+    'friendly-corvid',
+    'slowdown',
+    'hungry-corvid',
+  ];
+  for (let i = 0; i < kinds.length; i++) {
+    const game = makeGame();
+    const values = [0.05, (i + 0.5) / 5];
+    game.random = () => values.shift() ?? 0.7;
+    game.requestDig(1);
+    game.update(RULES.digDuration, idle);
+    const event = game.drainEvents().find((e) => e.type === 'powerup');
+    assert.equal(event.kind, kinds[i]);
+    if (i === 0) {
+      assert.equal(game.bonusDrops, 3);
+      assert.equal(game.drops, 1);
+      assert.equal(game.acorns.length, 4);
+      assert.ok(game.acorns.slice(1).every((a) => a.x >= 20 && a.x < 40));
+    }
+  }
+});
+
+test('speed boost and slowdown change movement for six seconds, do not stack, and expire', () => {
+  const boosted = makeGame(),
+    slowed = makeGame(),
+    normal = makeGame();
+  boosted.applyPowerup(boosted.players[0], 'speed-boost');
+  slowed.applyPowerup(slowed.players[0], 'slowdown');
+  for (const game of [boosted, slowed, normal])
+    game.update(1, [{ x: 1, z: 0 }, idle[1]]);
+  assert.ok(boosted.players[0].x > normal.players[0].x);
+  assert.ok(slowed.players[0].x < normal.players[0].x);
+  boosted.applyPowerup(boosted.players[0], 'slowdown');
+  assert.equal(boosted.players[0].effect, 'slowdown');
+  assert.equal(boosted.players[0].effectUntil, boosted.elapsed + 6);
+  boosted.update(6.1, idle);
+  slowed.update(5.1, idle);
+  assert.equal(boosted.players[0].effect, null);
+  assert.equal(slowed.players[0].effect, null);
+});
+
+test('helpful and harmful corvids remove one acorn from the correct patch without revealing its location', () => {
+  const game = makeGame();
+  giveAcorn(game, 0);
+  game.requestDig(0);
+  game.update(RULES.digDuration, idle);
+  giveAcorn(game, 1, 30.5, 4.5);
+  game.requestDig(1);
+  game.update(RULES.digDuration, idle);
+  game.drainEvents();
+  game.applyPowerup(game.players[0], 'friendly-corvid');
+  assert.deepEqual(game.scores, [1, 0]);
+  game.applyPowerup(game.players[0], 'hungry-corvid');
+  assert.deepEqual(game.scores, [0, 0]);
+  game.applyPowerup(game.players[0], 'hungry-corvid');
+  const events = game.drainEvents();
+  assert.deepEqual(
+    events.map((e) => e.stolen),
+    [true, true, false],
+  );
+  assert.ok(events.every((e) => !('col' in e) && !('row' in e)));
+});
+
+test('wire snapshots and burial events never disclose hidden cells or dig reservations', () => {
+  const game = makeGame();
+  giveAcorn(game, 0);
+  game.requestDig(0);
+  game.update(RULES.digDuration, idle);
+  game.players[1].carrying = true;
+  game.requestDig(1);
+  const snapshot = game.snapshot();
+  assert.equal('buried' in snapshot, false);
+  assert.equal('key' in snapshot.players[1].dig, false);
+  assert.equal('col' in snapshot.players[1].dig, false);
+  assert.equal('row' in snapshot.players[1].dig, false);
+  const bury = game.drainEvents().find((e) => e.type === 'bury');
+  assert.deepEqual(Object.keys(bury).sort(), ['player', 'territory', 'type']);
 });
 
 test('a burial scores for the board half, including a burial by the opponent', () => {

@@ -2,6 +2,7 @@ import './style.css';
 import { Game, RULES } from './game.js';
 import { ForestScene } from './scene.js';
 import { WoodlandAudio } from './audio.js';
+import { OnlineSession, lobbyBase } from './online.js';
 
 const $ = (id) => document.getElementById(id);
 const arrowIcon =
@@ -21,7 +22,23 @@ const gameKeys = new Set([
   'Space',
   'Enter',
 ]);
-const dialogs = ['help-dialog', 'pause-dialog', 'results-dialog'].map($);
+const dialogs = [
+  'help-dialog',
+  'pause-dialog',
+  'results-dialog',
+  'lobby-dialog',
+].map($);
+let online = null;
+let remoteState = null;
+let lastInputAt = 0;
+let onlineDig = false;
+let powerupTimer;
+const sessionQuery = new URLSearchParams(location.search);
+$('lobby-server').value =
+  sessionQuery.get('lobby') ||
+  import.meta.env.VITE_LOBBY_URL ||
+  localStorage.getItem('scatterhoard-lobby') ||
+  location.origin;
 let forest;
 let countdown = 0;
 let lastCountdownNumber = 0;
@@ -46,6 +63,8 @@ function anyDialogOpen() {
 }
 function clearInputs() {
   keys.clear();
+  onlineDig = false;
+  online?.input({ x: 0, z: 0 });
 }
 function showMessage(text, duration = 2500) {
   clearTimeout(messageTimer);
@@ -59,6 +78,13 @@ function showMessage(text, duration = 2500) {
 
 function beginRound() {
   if (!forest) return;
+  if (online) {
+    if (online.closed) return;
+    online.send('ready');
+    for (const dialog of dialogs) if (dialog.open) dialog.close();
+    clearInputs();
+    return;
+  }
   for (const dialog of dialogs) if (dialog.open) dialog.close();
   helpPreviousPhase = null;
   pendingRestart = false;
@@ -66,6 +92,7 @@ function beginRound() {
   game.reset();
   game.phase = 'countdown';
   forest.reset();
+  $('powerup-notice').hidden = true;
   countdown = 3;
   lastCountdownNumber = 3;
   $('countdown-number').textContent = '3';
@@ -78,6 +105,12 @@ function beginRound() {
 
 function pauseGame() {
   if (anyDialogOpen()) return;
+  if (online) {
+    clearInputs();
+    $('pause-dialog').showModal();
+    syncUI();
+    return;
+  }
   if (game.phase === 'playing') game.pause();
   else if (game.phase === 'countdown') game.phase = 'paused-countdown';
   else return;
@@ -89,8 +122,10 @@ function pauseGame() {
 function resumeGame() {
   pendingRestart = false;
   $('pause-dialog').close();
-  if (game.phase === 'paused-countdown') game.phase = 'countdown';
-  else game.resume();
+  if (!online) {
+    if (game.phase === 'paused-countdown') game.phase = 'countdown';
+    else game.resume();
+  }
   clearInputs();
   $('game-canvas').focus({ preventScroll: true });
   syncUI();
@@ -113,7 +148,7 @@ function showResults() {
       : 'Good paws. Great planning. Well played, both of you.';
   const total = game.scores[0] + game.scores[1];
   $('results-detail').textContent =
-    `${total} ${total === 1 ? 'acorn' : 'acorns'} tucked away. ${game.drops} dropped. One very busy minute.`;
+    `${total} ${total === 1 ? 'acorn' : 'acorns'} tucked away. ${game.drops + game.bonusDrops} dropped. One very busy minute.`;
   $('results-dialog').showModal();
   audio.play('finish');
 }
@@ -121,16 +156,22 @@ function showResults() {
 function openHelp() {
   if (anyDialogOpen()) return;
   helpPreviousPhase = game.phase;
-  if (game.phase === 'playing') game.pause();
-  else if (game.phase === 'countdown') game.phase = 'paused-countdown';
+  if (!online && game.phase === 'playing') game.pause();
+  else if (!online && game.phase === 'countdown')
+    game.phase = 'paused-countdown';
   clearInputs();
   $('help-dialog').showModal();
   syncUI();
 }
 
 $('help-dialog').addEventListener('close', () => {
-  if (helpPreviousPhase === 'playing' && game.phase === 'paused') game.resume();
-  if (helpPreviousPhase === 'countdown' && game.phase === 'paused-countdown')
+  if (!online && helpPreviousPhase === 'playing' && game.phase === 'paused')
+    game.resume();
+  if (
+    !online &&
+    helpPreviousPhase === 'countdown' &&
+    game.phase === 'paused-countdown'
+  )
     game.phase = 'countdown';
   helpPreviousPhase = null;
   clearInputs();
@@ -198,19 +239,23 @@ window.addEventListener('keydown', (event) => {
   event.preventDefault();
   keys.add(event.code);
   if (!event.repeat && game.phase === 'playing') {
-    if (event.code === 'Space') game.requestDig(0);
-    if (event.code === 'Enter') game.requestDig(1);
+    if (online) {
+      if (event.code === 'Space' || event.code === 'Enter') onlineDig = true;
+    } else {
+      if (event.code === 'Space') game.requestDig(0);
+      if (event.code === 'Enter') game.requestDig(1);
+    }
   }
 });
 window.addEventListener('keyup', (event) => keys.delete(event.code));
 window.addEventListener('blur', () => {
   clearInputs();
-  pauseGame();
+  if (!online) pauseGame();
 });
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     clearInputs();
-    pauseGame();
+    if (!online) pauseGame();
   }
 });
 
@@ -229,7 +274,10 @@ for (const button of document.querySelectorAll('[data-key]')) {
 for (const button of document.querySelectorAll('[data-bury]'))
   button.addEventListener('pointerdown', (event) => {
     event.preventDefault();
-    if (!anyDialogOpen()) game.requestDig(Number(button.dataset.bury));
+    if (!anyDialogOpen()) {
+      if (online) onlineDig = true;
+      else game.requestDig(Number(button.dataset.bury));
+    }
   });
 
 function inputs() {
@@ -245,35 +293,228 @@ function inputs() {
   ];
 }
 
-function handleEvents() {
-  for (const event of game.drainEvents()) {
+const POWERUP_TEXT = {
+  'acorn-rain': [
+    'Acorn rain',
+    'Three extra acorns just dropped on your side.',
+    true,
+  ],
+  'speed-boost': [
+    'Fleet paws',
+    'A speed boost for six seconds. Make it count.',
+    true,
+  ],
+  'friendly-corvid': [
+    'A corvid accomplice',
+    'A corvid steals one acorn from the opponent’s patch.',
+    true,
+  ],
+  slowdown: [
+    'Heavy paws',
+    'Slowed down for six seconds. This too shall pass.',
+    false,
+  ],
+  'hungry-corvid': [
+    'A hungry corvid',
+    'A corvid steals one acorn from your own patch.',
+    false,
+  ],
+};
+function handleEvents(events = game.drainEvents()) {
+  for (const event of events) {
     forest?.onEvent(event);
-    if (['pickup', 'bury', 'drop'].includes(event.type)) audio.play(event.type);
+    if (['pickup', 'bury', 'drop', 'unearth'].includes(event.type))
+      audio.play(event.type === 'unearth' ? 'pickup' : event.type);
     const name = event.player === 0 ? 'Red' : 'Ash';
     if (event.type === 'pickup')
-      showMessage(
-        `${name} found an acorn. Find a square and ${event.player === 0 ? 'press Space' : 'press Enter'}!`,
-        2200,
-      );
+      showMessage(`${name} found an acorn. Find a hiding spot and dig!`, 1800);
     if (event.type === 'bury')
+      showMessage(`${name} tucked one away. Remember that spot.`, 1800);
+    if (event.type === 'unearth')
       showMessage(
-        event.player === event.territory
-          ? `${name} tucked one away. Nice digging!`
-          : `That’s ${event.territory === 0 ? 'Red’s' : 'Ash’s'} patch! Their side gets the point.`,
-        2300,
+        `${name} found the opponent’s stash! Take it home and bury it.`,
+        2500,
       );
+    if (event.type === 'miss')
+      showMessage(`${name}: nothing here. Keep guessing.`, 1200);
     if (event.type === 'hint')
       showMessage(
-        event.reason === 'empty'
-          ? `${name}, find an acorn first. Run over one to pick it up.`
-          : 'That square is already taken. Try the next one.',
+        event.reason === 'busy'
+          ? 'Someone is digging here. Try another spot.'
+          : 'Couldn’t bury it here. Try another spot.',
       );
+    if (event.type === 'powerup') {
+      const [title, description, good] = POWERUP_TEXT[event.kind];
+      $('powerup-title').textContent = `${name} found ${title}!`;
+      $('powerup-description').textContent =
+        event.kind.includes('corvid') && !event.stolen
+          ? 'The corvid swooped in, but found no buried acorns to steal.'
+          : description;
+      $('powerup-notice').classList.toggle('harmful', !good);
+      $('powerup-notice').hidden = false;
+      clearTimeout(powerupTimer);
+      powerupTimer = setTimeout(() => {
+        $('powerup-notice').hidden = true;
+      }, 5000);
+      audio.play(good ? 'bury' : 'drop');
+    }
     if (event.type === 'finish') showResults();
   }
 }
 
+function resetToLocal() {
+  online?.leave();
+  online = null;
+  remoteState = null;
+  forest.networked = false;
+  game.reset();
+  forest.reset();
+  clearInputs();
+  for (const dialog of dialogs) if (dialog.open) dialog.close();
+  $('room-bar').hidden = true;
+  $('powerup-notice').hidden = true;
+  $('connection-status').textContent = 'Two squirrels. One screen.';
+  $('local-mode').classList.add('active');
+  $('online-mode').classList.remove('active');
+  $('local-mode').setAttribute('aria-pressed', 'true');
+  $('online-mode').setAttribute('aria-pressed', 'false');
+  const address = new URL(location.href);
+  address.searchParams.delete('room');
+  address.searchParams.delete('lobby');
+  history.replaceState(null, '', address);
+  syncUI();
+}
+function connectRoom(session) {
+  online?.leave();
+  online = session;
+  const address = new URL(location.href);
+  address.searchParams.set('room', session.code);
+  if (session.base !== location.origin)
+    address.searchParams.set('lobby', session.base);
+  history.replaceState(null, '', address);
+  remoteState = null;
+  forest.networked = true;
+  game.reset();
+  forest.reset();
+  clearInputs();
+  $('lobby-dialog').close();
+  $('room-bar').hidden = false;
+  $('local-mode').classList.remove('active');
+  $('online-mode').classList.add('active');
+  $('local-mode').setAttribute('aria-pressed', 'false');
+  $('online-mode').setAttribute('aria-pressed', 'true');
+  $('connection-status').textContent = 'Connecting to the clearing…';
+  $('room-description').textContent = `Room ${session.code} · Connecting…`;
+  session.addEventListener('welcome', () => {
+    $('connection-status').textContent =
+      `Online · You’re ${session.slot === 0 ? 'Red' : 'Ash'}`;
+    $('room-description').textContent =
+      `Room ${session.code} · You’re ${session.slot === 0 ? 'Red' : 'Ash'}`;
+  });
+  session.addEventListener('state', ({ detail: { state, events } }) => {
+    const oldPhase = game.phase;
+    if (!remoteState || state.epoch !== remoteState.epoch) {
+      forest.reset();
+      $('powerup-notice').hidden = true;
+    }
+    remoteState = state;
+    Object.assign(game, state);
+    handleEvents(events);
+    if (
+      state.phase === 'finished' &&
+      oldPhase !== 'finished' &&
+      !events.some((e) => e.type === 'finish')
+    )
+      showResults();
+    $('countdown-overlay').hidden = state.phase !== 'countdown';
+    $('countdown-number').textContent = Math.max(1, Math.ceil(state.countdown));
+    if (state.phase === 'paused')
+      $('connection-status').textContent =
+        'Round paused · Waiting for your friend to reconnect…';
+    else
+      $('connection-status').textContent = state.seats.every((s) => s.connected)
+        ? `Online · You’re ${session.slot === 0 ? 'Red' : 'Ash'}`
+        : 'Waiting for your friend. Share the room code.';
+    syncUI();
+  });
+  session.addEventListener('reconnecting', () => {
+    clearInputs();
+    $('connection-status').textContent =
+      'Connection interrupted. Reconnecting…';
+  });
+  session.addEventListener('failure', ({ detail }) => {
+    $('connection-status').textContent = detail;
+    showMessage(detail, 10000);
+    syncUI();
+  });
+  session.connect();
+}
+async function enterLobby(host) {
+  $('lobby-error').textContent = '';
+  $('host-room').disabled = true;
+  $('join-room').disabled = true;
+  try {
+    const base = lobbyBase($('lobby-server').value.trim());
+    localStorage.setItem('scatterhoard-lobby', base);
+    const session = host
+      ? await OnlineSession.host(base)
+      : OnlineSession.join(base, $('room-code').value);
+    connectRoom(session);
+  } catch (error) {
+    $('lobby-error').textContent = error.message;
+    $('lobby-settings').open = true;
+  } finally {
+    $('host-room').disabled = false;
+    $('join-room').disabled = false;
+  }
+}
+$('online-mode').addEventListener('click', () => {
+  if (online && !online.closed) return;
+  if (!anyDialogOpen()) {
+    clearInputs();
+    if (game.phase === 'playing') game.pause();
+    else if (game.phase === 'countdown') game.phase = 'paused-countdown';
+    $('lobby-dialog').showModal();
+  }
+});
+$('lobby-dialog').addEventListener('close', () => {
+  if (!online && game.phase === 'paused') game.resume();
+  else if (!online && game.phase === 'paused-countdown')
+    game.phase = 'countdown';
+});
+$('local-mode').addEventListener('click', () => {
+  if (online) resetToLocal();
+});
+$('leave-room').addEventListener('click', resetToLocal);
+$('host-room').addEventListener('click', () => enterLobby(true));
+$('join-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  enterLobby(false);
+});
+$('copy-invite').addEventListener('click', async () => {
+  const invite = new URL(location.href);
+  invite.search = '';
+  invite.searchParams.set('room', online.code);
+  if (online.base !== location.origin)
+    invite.searchParams.set('lobby', online.base);
+  try {
+    await navigator.clipboard.writeText(invite.href);
+    showMessage('Invite link copied. Send it to your friend!');
+  } catch {
+    showMessage(
+      `Room code: ${online.code}. Your friend can enter it in Online play.`,
+      7000,
+    );
+  }
+});
+if (sessionQuery.has('room')) {
+  $('room-code').value = sessionQuery.get('room').toUpperCase().slice(0, 6);
+  $('lobby-dialog').showModal();
+}
+
 function syncUI() {
   const phase = game.phase;
+  const mySeat = online && remoteState ? remoteState.seats[online.slot] : null;
   const running = [
     'playing',
     'countdown',
@@ -303,26 +544,41 @@ function syncUI() {
     phase === 'ready'
       ? 'A one-minute scramble'
       : phase === 'playing'
-        ? `${Math.min(12, game.drops)} of 12 acorns dropped`
+        ? `${game.drops} of 12 drops${game.bonusDrops ? ` + ${game.bonusDrops} bonus` : ''}`
         : finished
           ? 'Time’s up. Tails high.'
           : phase === 'countdown'
             ? 'The scramble starts soon'
             : 'Round paused';
   $('start-button').hidden = running;
+  $('start-button').disabled =
+    !forest || Boolean(online && (online.closed || !mySeat || mySeat.ready));
   $('start-button').innerHTML = finished
     ? `Play again ${arrowIcon}`
     : `Let’s forage ${arrowIcon}`;
+  if (online)
+    $('start-button').innerHTML = mySeat?.ready
+      ? 'Waiting for your friend…'
+      : `Ready to forage ${arrowIcon}`;
   $('pause-button').hidden = !running;
   $('pause-button').disabled =
     phase === 'paused' || phase === 'paused-countdown';
-  $('restart-button').hidden = phase !== 'playing';
+  $('restart-button').hidden = Boolean(online) || phase !== 'playing';
+  $('pause-restart-button').hidden = Boolean(online);
+  $('rematch-button').textContent = online
+    ? 'Ready for a rematch'
+    : 'One more round';
   $('pause-title').innerHTML = pendingRestart
     ? 'A fresh<br><em>start?</em>'
     : 'Taking a<br><em>breather.</em>';
   $('pause-dialog').querySelector('p').textContent = pendingRestart
     ? 'Start over with an empty board, or get back to this round.'
     : 'Your acorns aren’t going anywhere. Ready when you are.';
+  if (online) {
+    $('pause-title').innerHTML = 'A quick<br><em>breather.</em>';
+    $('pause-dialog').querySelector('p').textContent =
+      'The online round keeps going while this menu is open. Your squirrel stays still.';
+  }
   if (phase === 'ready') {
     $('toolbar-title').textContent = 'A little hustle. A lot of hoarding.';
     $('toolbar-subtitle').textContent =
@@ -334,9 +590,9 @@ function syncUI() {
         : `${game.winner === 0 ? 'Red' : 'Ash'} wins this little woodland rivalry.`;
     $('toolbar-subtitle').textContent = 'There’s always room for a rematch.';
   } else {
-    $('toolbar-title').textContent = 'Find it. Carry it. Bury it.';
+    $('toolbar-title').textContent = 'Hide it. Remember it. Steal theirs.';
     $('toolbar-subtitle').textContent =
-      'Stay still to dig. Your patch is where your points grow.';
+      'Dig with empty paws to search. Every search might hold a surprise.';
   }
   if (phase === 'playing') {
     const tillDrop = Math.max(0, Math.ceil(game.nextDrop - game.elapsed));
@@ -357,8 +613,15 @@ function syncUI() {
     }
     const player = game.players[id];
     const carry = $(name + '-carry');
+    const effect = $(name + '-effect');
+    effect.textContent = player.effect
+      ? `${player.effect === 'speed-boost' ? 'Fleet paws' : 'Heavy paws'} · ${Math.max(0, Math.ceil(player.effectUntil - game.elapsed))}s`
+      : '';
+    effect.classList.toggle('slow', player.effect === 'slowdown');
     carry.textContent = player.dig
-      ? 'Digging…'
+      ? player.dig.mode === 'search'
+        ? 'Searching…'
+        : 'Digging…'
       : player.carrying
         ? 'Acorn in paws'
         : 'Paws empty';
@@ -371,7 +634,18 @@ let nextUI = 0;
 function frame(now) {
   const dt = Math.min(Math.max(0, (now - previousTime) / 1000), 0.25);
   previousTime = now;
-  if (game.phase === 'countdown') {
+  if (online) {
+    if (now - lastInputAt >= 50 && online.slot !== null) {
+      const both = inputs();
+      const input = {
+        x: Math.max(-1, Math.min(1, both[0].x + both[1].x)),
+        z: Math.max(-1, Math.min(1, both[0].z + both[1].z)),
+      };
+      online.input(input, onlineDig);
+      onlineDig = false;
+      lastInputAt = now;
+    }
+  } else if (game.phase === 'countdown') {
     countdown -= dt;
     const number = Math.ceil(countdown);
     if (number > 0 && number !== lastCountdownNumber) {

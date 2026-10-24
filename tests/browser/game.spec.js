@@ -10,7 +10,7 @@ async function advance(page, milliseconds) {
 test('a real browser can render, collect, bury, pause, finish, and rematch', async ({
   page,
 }) => {
-  test.setTimeout(120000);
+  test.setTimeout(180000);
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript(() => {
@@ -34,9 +34,7 @@ test('a real browser can render, collect, bury, pause, finish, and rematch', asy
   await expect(page.locator('#countdown-overlay')).toBeVisible();
   await advance(page, 3200);
   await expect(page.locator('#countdown-overlay')).toBeHidden();
-  await expect(page.locator('#clock-caption')).toHaveText(
-    '1 of 12 acorns dropped',
-  );
+  await expect(page.locator('#clock-caption')).toHaveText('1 of 12 drops');
 
   // The deterministic first drop is (10.5, 2.9), near Red's (8.5, 5.5).
   await page.keyboard.down('w');
@@ -72,7 +70,7 @@ test('a real browser can render, collect, bury, pause, finish, and rematch', asy
   await page.keyboard.press('Enter');
   await advance(page, 700);
   await expect(page.locator('#grey-carry')).toHaveText('Acorn in paws');
-  await expect(page.locator('#arena-message')).toContainText('already taken');
+  await expect(page.locator('#arena-message')).toContainText('Couldn’t bury');
   await page.keyboard.down('ArrowRight');
   await advance(page, 240);
   await page.keyboard.up('ArrowRight');

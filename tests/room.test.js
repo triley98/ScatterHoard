@@ -1,0 +1,115 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { MatchRoom } from '../server/room.js';
+
+function makeRoom() {
+  const room = new MatchRoom({
+    code: 'ABC234',
+    hostToken: 'host-secret',
+    random: () => 0.5,
+    now: 1000,
+  });
+  room.join('host-secret', () => 'unused');
+  room.join(null, () => 'guest-secret');
+  return room;
+}
+function start(room) {
+  room.setReady(0);
+  room.setReady(1);
+  room.tick(4000);
+}
+
+test('lobby assigns host and guest, rejects extra players, duplicates, and invalid tickets', () => {
+  const room = makeRoom();
+  assert.deepEqual(room.connected, [true, true]);
+  assert.throws(() => room.join(null, () => ''), /two squirrels/);
+  assert.throws(() => room.join('host-secret', () => ''), /another tab/);
+  assert.throws(() => room.join('invented-token', () => ''), /expired/);
+  const wire = JSON.stringify(room.snapshot());
+  assert.ok(!wire.includes('host-secret') && !wire.includes('guest-secret'));
+});
+
+test('both players must ready up before a synchronized three-second countdown', () => {
+  const room = makeRoom();
+  room.setReady(0);
+  assert.equal(room.game.phase, 'ready');
+  room.setReady(1);
+  assert.equal(room.game.phase, 'countdown');
+  room.tick(3000);
+  assert.equal(room.game.phase, 'countdown');
+  room.tick(4000);
+  assert.equal(room.game.phase, 'playing');
+  assert.equal(room.game.elapsed, 0);
+  assert.equal(room.epoch, 1);
+});
+
+test('server applies only valid inputs for that seat, expires stale input, and rejects replayed sequences', () => {
+  const room = makeRoom();
+  start(room);
+  room.input(0, { x: Infinity, z: 0, seq: 0 }, 4000);
+  assert.equal(room.inputs[0].seq, -1);
+  room.input(
+    0,
+    { x: 1, z: 0, seq: 1, scores: [999, 0], powerup: 'speed-boost' },
+    4000,
+  );
+  room.tick(4500);
+  assert.ok(room.game.players[0].x > 8.5);
+  assert.equal(room.game.players[1].x, 31.5);
+  assert.deepEqual(room.game.scores, [0, 0]);
+  room.input(0, { x: -1, z: 0, seq: 1 }, 4500);
+  assert.equal(room.inputs[0].x, 1);
+  room.tick(5000);
+  room.tick(5500);
+  const x = room.game.players[0].x;
+  room.tick(6000);
+  assert.equal(room.game.players[0].x, x);
+});
+
+test('disconnect pauses the match and an authenticated reconnect resumes without losing score', () => {
+  const room = makeRoom();
+  start(room);
+  room.tick(4500);
+  const elapsed = room.game.elapsed;
+  room.disconnect(1, 4500);
+  room.tick(10000);
+  assert.equal(room.game.phase, 'paused');
+  assert.equal(room.game.elapsed, elapsed);
+  room.join('guest-secret', () => '');
+  assert.equal(room.game.phase, 'playing');
+  room.tick(10500);
+  assert.ok(room.game.elapsed > elapsed);
+});
+
+test('a 30-second reconnect timeout resets the round; both players can ready for a rematch', () => {
+  const room = makeRoom();
+  start(room);
+  room.disconnect(1, 4000);
+  room.tick(35001);
+  assert.equal(room.game.phase, 'ready');
+  assert.deepEqual(room.ready, [false, false]);
+  room.join('guest-secret', () => '');
+  room.setReady(0);
+  room.setReady(1);
+  room.tick(38001);
+  assert.equal(room.game.phase, 'playing');
+  room.tick(98001);
+  assert.equal(room.game.phase, 'finished');
+  room.setReady(0);
+  assert.equal(room.game.phase, 'finished');
+  room.setReady(1);
+  assert.equal(room.game.phase, 'countdown');
+  assert.deepEqual(room.game.scores, [0, 0]);
+});
+
+test('returning after both sockets were offline still enforces the reconnect deadline', () => {
+  const room = makeRoom();
+  start(room);
+  room.disconnect(0, 4000);
+  room.disconnect(1, 4000);
+  // No timer ticks while both sockets are gone.
+  room.join('host-secret', () => '', 35001);
+  room.join('guest-secret', () => '', 35001);
+  assert.equal(room.game.phase, 'ready');
+  assert.deepEqual(room.ready, [false, false]);
+});
