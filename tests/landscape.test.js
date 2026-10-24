@@ -11,6 +11,7 @@ test('five large rear trees sit beyond the board and small foreground trees leav
   assert.equal(large.length, 5);
   assert.ok(large.every(c => c.position.z < -RULES.depth / 2));
   for (const tree of large) {
+    tree.updateMatrixWorld(true);
     const crowns = tree.children.filter(child => child.geometry?.type === 'ConeGeometry');
     assert.ok(crowns.length >= 3);
     for (const crown of crowns)
