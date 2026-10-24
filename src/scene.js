@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { RULES } from './game.js';
+import { poseSquirrel } from './squirrel-motion.js';
+import { makeLandscape, makeRock } from './landscape.js';
 
 const colors = {
   red: 0xb6653e,
@@ -70,7 +72,7 @@ function makeAcorn(scale = 1) {
   return group;
 }
 
-function makeSquirrel(id) {
+export function makeSquirrel(id) {
   const root = new THREE.Group();
   const body = new THREE.Group();
   root.add(body);
@@ -100,8 +102,8 @@ function makeSquirrel(id) {
   tailMesh.geometry.computeVertexNormals();
   mesh(geometries.sphere, fur, [0, 1.7, -0.63], [0.37, 0.41, 0.34], tail);
   body.add(tail);
-  mesh(geometries.sphere, fur, [0, 0.62, 0], [0.36, 0.49, 0.32], body);
-  mesh(geometries.sphere, lightFur, [0, 0.59, 0.25], [0.23, 0.34, 0.13], body);
+  const torso = mesh(geometries.sphere, fur, [0, 0.62, 0], [0.36, 0.49, 0.32], body);
+  const belly = mesh(geometries.sphere, lightFur, [0, 0.59, 0.25], [0.23, 0.34, 0.13], body);
   const head = new THREE.Group();
   head.position.set(0, 1.15, 0.11);
   body.add(head);
@@ -173,6 +175,12 @@ function makeSquirrel(id) {
     arm.rotation.z = side * 0.35;
     return arm;
   });
+  const forepaws = [-1, 1].map((side) => {
+    const paw = mesh(geometries.sphere, tailFur,
+      [side * 0.28, 0.15, 0.55], [0.12, 0.10, 0.19], body);
+    paw.visible = false;
+    return paw;
+  });
   const held = makeAcorn(0.85);
   held.position.set(0, 0.58, 0.43);
   held.visible = false;
@@ -197,7 +205,7 @@ function makeSquirrel(id) {
     root,
   );
   marker.rotation.z = Math.PI;
-  return { root, body, tail, feet, arms, held, head, marker, rotation: 0 };
+  return { root, body, torso, belly, tail, feet, arms, forepaws, held, head, marker, ring, rotation: 0, poseBlend: 0, motionTime: 0 };
 }
 
 export class ForestScene {
@@ -241,7 +249,7 @@ export class ForestScene {
     this.acornMeshes = new Map();
     this.birds = [];
     this.particles = [];
-    this.makeLandscape();
+    makeLandscape(this.scene);
     this.makeBoard();
     this.rockGroup = new THREE.Group();
     this.scene.add(this.rockGroup);
@@ -272,7 +280,7 @@ export class ForestScene {
       this.canvas.parentElement;
     if (!width || !height) return;
     const aspect = width / height;
-    const halfWidth = Math.max(26.5, 11.5 * aspect);
+    const halfWidth = Math.max(29.5, 12.2 * aspect);
     const halfHeight = halfWidth / aspect;
     Object.assign(this.camera, {
       left: -halfWidth,
@@ -282,138 +290,6 @@ export class ForestScene {
     });
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
-  }
-
-  makeLandscape() {
-    const random = seededRandom(23);
-    const ground = mesh(
-      new THREE.PlaneGeometry(200, 200),
-      material(0x3c5443),
-      [0, -0.8, 0],
-      null,
-      this.scene,
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.castShadow = false;
-    const grassMats = [0x485f43, 0x4c6445, 0x526c49, 0x425b40].map((c) =>
-      material(c),
-    );
-    const stoneMats = [0x7c8972, 0x6e7d68, 0x8c927b].map((c) => material(c));
-    const leafMats = [0x304f38, 0x365b3c, 0x426640, 0x4d6d43].map((c) =>
-      material(c),
-    );
-    const trunkMat = material(0x5b4931);
-    // Small low-poly vegetation frames the clearing without obscuring its 400 cells.
-    for (let i = 0; i < 80; i++) {
-      const x = (random() - 0.5) * 54;
-      const z = (random() - 0.5) * 28;
-      if (Math.abs(x) < 21.3 && Math.abs(z) < RULES.depth / 2 + 1.6) continue;
-      const size = 0.4 + random() * 1.3;
-      const patch = mesh(
-        geometries.lowSphere,
-        grassMats[i % grassMats.length],
-        [x, -0.74, z],
-        [size * 0.8, 0.3, size * 0.65],
-        this.scene,
-      );
-      patch.castShadow = false;
-      if (i % 3 === 0) {
-        const stone = mesh(
-          geometries.lowSphere,
-          stoneMats[i % 3],
-          [x, -0.45, z],
-          [0.35 + random() * 0.5, 0.3 + random() * 0.3, 0.35 + random() * 0.3],
-          this.scene,
-        );
-        stone.rotation.y = random() * Math.PI;
-      } else {
-        for (let j = 0; j < 3; j++) {
-          const tuft = mesh(
-            geometries.cone,
-            grassMats[(i + 1) % 4],
-            [x + (random() - 0.5) * size, -0.48, z + (random() - 0.5) * size],
-            [0.06, 0.45 + random() * 0.3, 0.06],
-            this.scene,
-          );
-          tuft.rotation.z = (random() - 0.5) * 0.8;
-        }
-      }
-    }
-    const trees = [];
-    for (let i = 0; i < 22; i++) {
-      trees.push([-25 + i * 2.4, -7.2 - random() * 2.2, 2.7 + random() * 2]);
-      if (i % 2 === 0) trees.push([-25 + i * 2.4, -11.5, 3.7 + random() * 2.5]);
-    }
-    for (const side of [-1, 1])
-      for (let i = 0; i < 6; i++)
-        trees.push([
-          side * (22 + random() * 2),
-          -5 + i * 2.8,
-          2.4 + random() * 1.5,
-        ]);
-    trees.push([-18, 8, 2.1], [-10, 9, 2.2], [11, 8.7, 2.5], [19, 8.4, 2.3]);
-    for (const [x, z, h] of trees) {
-      const tree = new THREE.Group();
-      tree.position.set(x, -0.8, z < -7 ? z - 3 : z > 7 ? z + 3 : z);
-      mesh(
-        geometries.cylinder,
-        trunkMat,
-        [0, h * 0.28, 0],
-        [0.13, h * 0.56, 0.13],
-        tree,
-      );
-      for (let layer = 0; layer < 3; layer++) {
-        const size = h * (0.36 - layer * 0.072);
-        const crown = mesh(
-          geometries.cone,
-          leafMats[(layer + Math.floor(random() * 2)) % 4],
-          [0, h * (0.47 + layer * 0.19), 0],
-          [size, h * 0.5, size],
-          tree,
-        );
-        crown.rotation.y = layer * 0.6;
-      }
-      this.scene.add(tree);
-    }
-    // Log and mushrooms add a little woodland life around the board.
-    const log = mesh(
-      geometries.cylinder,
-      material(0x6f5437),
-      [-20.8, -0.15, 7.2],
-      [0.43, 2.8, 0.43],
-      this.scene,
-    );
-    log.rotation.z = Math.PI / 2;
-    log.rotation.y = 0.18;
-    const end = mesh(
-      geometries.cylinder,
-      material(0xba9c6d),
-      [-22.19, -0.15, 7.45],
-      [0.36, 0.025, 0.36],
-      this.scene,
-    );
-    end.rotation.z = Math.PI / 2;
-    for (const [x, z] of [
-      [-21, 5.7],
-      [22, 4],
-      [20.8, 7],
-      [-22, -3],
-    ]) {
-      mesh(
-        geometries.cylinder,
-        material(0xd2c2a0),
-        [x, -0.42, z],
-        [0.08, 0.6, 0.08],
-        this.scene,
-      );
-      mesh(
-        geometries.sphere,
-        material(0xb56d40),
-        [x, -0.1, z],
-        [0.35, 0.15, 0.35],
-        this.scene,
-      );
-    }
   }
 
   makeBoard() {
@@ -479,7 +355,8 @@ export class ForestScene {
     const leaves = [material(0x456c42), material(0x5d7e46), material(0x77944f)];
     for (const side of [-1, 1]) {
       const tree = new THREE.Group();
-      tree.position.set(side * (RULES.width / 2 + 1.25), 0, 0);
+      tree.position.set(side * (RULES.width / 2 + 2), 0, 0);
+      tree.scale.setScalar(2);
       mesh(geometries.cylinder, bark, [0, 2.5, 0], [0.65, 5, 0.65], tree);
       for (let i = 0; i < 5; i++) {
         const angle = i * Math.PI * 2 / 5;
@@ -539,17 +416,11 @@ export class ForestScene {
     this.rockLayout = layout;
     for (const child of [...this.rockGroup.children]) {
       this.rockGroup.remove(child);
-      if (!Object.values(geometries).includes(child.geometry)) child.geometry.dispose();
-      child.material.dispose();
+      this.removeGroup(child);
     }
-    for (const rock of this.game.rocks || []) {
-      const stone = mesh(geometries.lowSphere, material(0x849087),
-        [rock.x + rock.width / 2 - RULES.width / 2, 0.65, rock.z + rock.depth / 2 - RULES.depth / 2],
-        [rock.width / 2, 0.9, rock.depth / 2], this.rockGroup);
-      // A solid square base matches the collision footprint; the crown is faceted.
-      mesh(new THREE.BoxGeometry(rock.width, 0.45, rock.depth), material(0x737e73),
-        [stone.position.x, 0.25, stone.position.z], null, this.rockGroup);
-    }
+    (this.game.rocks || []).forEach((rock, index) => {
+      this.rockGroup.add(makeRock(rock, index));
+    });
   }
 
   createWorldAcorn() {
@@ -676,55 +547,36 @@ export class ForestScene {
       const intro = game.phase === 'countdown' || game.phase === 'intermission' ||
         game.phase === 'paused-countdown' || (game.phase === 'paused' && ['countdown', 'intermission'].includes(game.resumePhase));
       let entering = false;
+      let climb = 0;
+      let climbPitch = 0;
       if (intro && !this.reducedMotion) {
         const remaining = game.phase === 'intermission' || game.resumePhase === 'intermission'
           ? game.intermissionRemaining : game.countdown ?? 3;
         const progress = THREE.MathUtils.clamp(1 - remaining / 3, 0, 1);
         const side = player.id === 0 ? -1 : 1;
-        const treeX = side * (RULES.width / 2 + 0.55);
-        const descend = Math.min(1, progress / 0.45);
-        const run = Math.max(0, (progress - 0.45) / 0.55);
+        const treeX = side * (RULES.width / 2 + 2);
+        const descend = Math.min(1, progress / 0.56);
+        const run = Math.max(0, (progress - 0.56) / 0.44);
+        // Keep all four paws on the front of the bark, then curl onto the ground.
+        const turn = THREE.MathUtils.smoothstep(run, 0, 0.18);
+        climb = 1 - turn;
+        climbPitch = climb * Math.PI / 2;
         squirrel.root.position.set(THREE.MathUtils.lerp(treeX, player.x - RULES.width / 2, run),
-          0.055 + (1 - descend) * 3.7, 0.85 * (1 - run));
+          0.055 + (1 - descend) * 7.4, 1.15 * (1 - run));
         entering = true;
-        squirrel.rotation = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+        squirrel.rotation = (side < 0 ? Math.PI / 2 : -Math.PI / 2) * turn;
       }
       const diff = Math.atan2(
         Math.sin(player.facing - squirrel.rotation),
         Math.cos(player.facing - squirrel.rotation),
       );
       if (!entering) squirrel.rotation += diff * Math.min(1, dt * 14);
-      squirrel.body.rotation.y = squirrel.rotation;
       const moving = entering || (active && Math.hypot(player.vx, player.vz) > 0.3);
-      const runCycle = time * 21;
-      squirrel.body.position.y =
-        animate && moving
-          ? Math.abs(Math.sin(runCycle)) * 0.12
-          : animate
-            ? Math.sin(time * 2 + player.id) * 0.025
-            : 0;
-      squirrel.body.rotation.x = entering && squirrel.root.position.y > 0.2 ? -0.55 : player.dig
-        ? 0.18 + Math.sin(time * 30) * 0.15
-        : 0;
-      squirrel.feet.forEach((foot, i) => {
-        foot.position.z =
-          0.16 +
-          (animate && moving ? Math.sin(runCycle + i * Math.PI) * 0.18 : 0);
+      poseSquirrel(squirrel, {
+        dt, animate, moving, climb, climbPitch,
+        carrying: player.carrying, digging: Boolean(player.dig),
+        speed: Math.hypot(player.vx, player.vz),
       });
-      squirrel.arms.forEach((arm, i) => {
-        arm.rotation.x = player.dig
-          ? -0.8 + Math.sin(time * 30 + i) * 0.4
-          : player.carrying
-            ? -0.55
-            : moving && animate
-              ? Math.sin(runCycle + i * Math.PI) * 0.35
-              : 0;
-      });
-      squirrel.tail.rotation.x =
-        moving && animate ? Math.sin(runCycle * 0.5) * 0.1 : 0;
-      squirrel.held.visible = player.carrying && !player.dig;
-      squirrel.marker.position.y =
-        2.5 + (animate ? Math.sin(time * 2 + player.id) * 0.08 : 0);
     }
     const liveIds = new Set(game.acorns.map((a) => a.id));
     for (const [id, object] of this.acornMeshes) {

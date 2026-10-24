@@ -374,6 +374,42 @@ test('round transitions retain buried stashes but reset positions and clear all 
   assert.deepEqual(game.scores, [0, 0]);
 });
 
+test('a round-one stash stays in its exact cell through round two and can be recovered in round three', () => {
+  const game = makeGame();
+  giveAcorn(game, 0, 12.2, 8.7);
+  assert.equal(game.requestDig(0), true);
+  game.update(RULES.digDuration, idle);
+  const stash = { ...game.buried.get('12,8') };
+  assert.deepEqual(stash, { col: 12, row: 8, territory: 0, player: 0 });
+
+  for (const round of [1, 2]) {
+    game.update(RULES.duration - game.elapsed, idle);
+    assert.equal(game.phase, 'intermission');
+    assert.equal(game.round, round);
+    assert.equal(game.acorns.length, 0);
+    assert.deepEqual(game.buried.get('12,8'), stash);
+    game.update(RULES.intermission, idle);
+    assert.equal(game.round, round + 1);
+    assert.deepEqual(game.buried.get('12,8'), stash);
+    assert.deepEqual(game.scores, [1, 0]);
+  }
+
+  // Searching an adjacent cell cannot retrieve or move the old stash.
+  Object.assign(game.players[1], { x: 13.5, z: 8.5 });
+  assert.equal(game.requestDig(1), true);
+  game.update(RULES.digDuration, idle);
+  assert.equal(game.players[1].carrying, false);
+  assert.deepEqual(game.buried.get('12,8'), stash);
+
+  // A different point in the original cell retrieves it for either player.
+  Object.assign(game.players[1], { x: 12.8, z: 8.2 });
+  assert.equal(game.requestDig(1), true);
+  game.update(RULES.digDuration, idle);
+  assert.equal(game.players[1].carrying, true);
+  assert.equal(game.buried.has('12,8'), false);
+  assert.deepEqual(game.scores, [0, 0]);
+});
+
 test('round breaks freeze movement and digging, pause cleanly, and preserve remaining buff time', () => {
   const game = makeGame();
   game.update(59, idle);
