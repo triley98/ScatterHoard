@@ -3,7 +3,7 @@ import { RULES } from './game.js';
 import { makeTurfTexture } from './turf.js';
 import { poseSquirrel } from './squirrel-motion.js';
 import { roundLighting, WindLeaves } from './atmosphere.js';
-import { makeLandscape, makeRock, makeStump } from './landscape.js';
+import { makeLandscape, makeRock, makeStump, cullOuterForest } from './landscape.js';
 
 const colors = {
   red: 0xb6653e,
@@ -296,6 +296,7 @@ export class ForestScene {
       bottom: -halfHeight + 1.2,
     });
     this.camera.updateProjectionMatrix();
+    cullOuterForest(this.scene, this.camera);
     this.renderer.setSize(width, height, false);
   }
 

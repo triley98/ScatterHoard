@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { RULES } from '../src/game.js';
-import { makeLandscape, makeRock, makeStump } from '../src/landscape.js';
+import { makeLandscape, makeRock, makeStump, cullOuterForest } from '../src/landscape.js';
 
 test('five large rear trees sit beyond the board and small foreground trees leave its front clear', () => {
   const border = makeLandscape(new THREE.Scene());
@@ -77,4 +77,18 @@ test('outer forest fills distant side, front, rear, and corner spaces using inst
   assert.ok(bushBox.min.x < -50 && bushBox.max.x > 50);
   assert.ok(bushBox.min.z < -50 && bushBox.max.z > 50);
   assert.ok(outer.reduce((n, group) => n + group.children.length, 0) <= 5);
+});
+
+test('distant forest draws only visible instances and restores them for larger views', () => {
+  const scene = new THREE.Scene(); makeLandscape(scene);
+  const parts = []; scene.traverse(o => { if (o.isInstancedMesh && o.name.startsWith('outer-')) parts.push(o); });
+  const total = () => parts.reduce((sum, o) => sum + o.count, 0);
+  const original = total();
+  const camera = new THREE.OrthographicCamera(-29.5, 29.5, 13, -11, 0.1, 500);
+  camera.position.set(0, 40, 40); camera.lookAt(0, 0, 0);
+  cullOuterForest(scene, camera);
+  assert.ok(total() > 0 && total() < original / 2);
+  Object.assign(camera, {left:-150,right:150,top:150,bottom:-150});
+  camera.updateProjectionMatrix(); cullOuterForest(scene, camera);
+  assert.equal(total(), original);
 });

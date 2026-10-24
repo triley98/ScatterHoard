@@ -322,3 +322,37 @@ export function makeStump(stump, index = 0) {
   }
   return group;
 }
+
+const outerInstances = new WeakMap();
+
+/** Compact distant instances to the camera view; retain originals for resizing. */
+export function cullOuterForest(scene, camera) {
+  camera.updateMatrixWorld(true);
+  const frustum = new THREE.Frustum().setFromProjectionMatrix(
+    new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+  const matrix = new THREE.Matrix4(), world = new THREE.Matrix4();
+  const sphere = new THREE.Sphere(), color = new THREE.Color();
+  scene.traverse(object => {
+    if (!object.isInstancedMesh || !object.name.startsWith('outer-')) return;
+    if (!outerInstances.has(object)) outerInstances.set(object, {
+      count: object.count, matrices: object.instanceMatrix.array.slice(),
+      colors: object.instanceColor?.array.slice(),
+    });
+    const source = outerInstances.get(object);
+    object.geometry.computeBoundingSphere();
+    object.updateWorldMatrix(true, false);
+    let visible = 0;
+    for (let i = 0; i < source.count; i++) {
+      matrix.fromArray(source.matrices, i * 16);
+      world.multiplyMatrices(object.matrixWorld, matrix);
+      sphere.copy(object.geometry.boundingSphere).applyMatrix4(world);
+      if (!frustum.intersectsSphere(sphere)) continue;
+      object.setMatrixAt(visible, matrix);
+      if (source.colors) object.setColorAt(visible, color.fromArray(source.colors, i * 3));
+      visible++;
+    }
+    object.count = visible;
+    object.instanceMatrix.needsUpdate = true;
+    if (object.instanceColor) object.instanceColor.needsUpdate = true;
+  });
+}
