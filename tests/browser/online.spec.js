@@ -14,6 +14,17 @@ test('two separate browsers host, join, synchronize movement, reconnect, and kee
     deviceScaleFactor: 0.25,
     viewport: { width: 1100, height: 850 },
   });
+  // Exercise real sockets, reload tickets and UI without software WebGL drawing
+  // consuming the server's 30-second reconnect grace. Visuals have separate tests.
+  for (const context of [hostContext, guestContext]) {
+    await context.route('**/src/scene.js', async route => {
+      const response = await route.fetch();
+      const source = await response.text();
+      const draw = /this\.renderer\.render\(this\.scene,\s*this\.camera\);/;
+      expect(source).toMatch(draw);
+      await route.fulfill({ response, body: source.replace(draw, 'void 0;') });
+    });
+  }
   const host = await hostContext.newPage(),
     guest = await guestContext.newPage();
   const errors = [],
