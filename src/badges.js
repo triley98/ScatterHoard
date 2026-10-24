@@ -13,13 +13,12 @@ const ICONS = {
   crow: '<path d="M18 41C8 43 5 48 6 52l17-3c13 2 24-6 25-17l7-6-8-5c-1-8-10-12-16-8-6 3-6 9-6 12-10 1-15 8-12 15Z" fill="#36433c" stroke="#24352c" stroke-width="2.5" stroke-linejoin="round"/><path d="m46 23 13 4-13 4" fill="#d4a557" stroke="#795c35" stroke-width="2"/><path d="M16 38c8-8 14-9 24-7-3 9-11 12-20 11" fill="#56665a" stroke="#24352c" stroke-width="2"/><circle cx="40" cy="21" r="2.2" fill="#f2e6c6"/><path d="m30 47-2 8m11-10 1 10m-16 0h8m4 0h8" fill="none" stroke="#795c35" stroke-width="2.5" stroke-linecap="round"/>',
   buried:
     '<path d="m38 12 10 10m-5-15 10 10-10 10-10-10Z" fill="#baa17a" stroke="#735d40" stroke-width="2.5" stroke-linejoin="round"/><path d="M37 25 19 43" stroke="#846644" stroke-width="6"/><path d="m15 37 12 12-10 9L6 47Z" fill="#8e9f86" stroke="#4d6650" stroke-width="2.5"/><path d="m38 43 6 6 12-14" fill="none" stroke="#527547" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>',
-  miss: '<circle cx="28" cy="27" r="16" fill="#e2e7ce" stroke="#6c8060" stroke-width="3"/><path d="m40 40 14 14" stroke="#6c8060" stroke-width="6" stroke-linecap="round"/><path d="M24 22c0-7 12-7 12 0 0 5-8 4-8 9m0 6v1" fill="none" stroke="#6c8060" stroke-width="3" stroke-linecap="round"/>',
   blocked:
     '<path d="m16 16 32 32m0-32L16 48" stroke="#a8714c" stroke-width="7" stroke-linecap="round"/>',
 };
 
 export function badgeIcon(kind) {
-  return `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">${ICONS[kind] || ICONS.miss}</svg>`;
+  return `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">${ICONS[kind] || ''}</svg>`;
 }
 
 /** DOM overlays projected from each rendered squirrel; no hidden board coordinates are used. */
@@ -92,8 +91,6 @@ export class PlayerBadges {
       );
     if (event.type === 'bury')
       this.show(event.player, 'buried', `${name} buried an acorn.`);
-    if (event.type === 'miss')
-      this.show(event.player, 'miss', `${name} found no acorn here.`);
     if (event.type === 'hint')
       this.show(event.player, 'blocked', `${name} cannot dig here.`, {
         harmful: true,

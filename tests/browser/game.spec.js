@@ -39,9 +39,9 @@ test('a real browser can render, collect, bury, pause, finish, and rematch', asy
   await expect(page.locator('#countdown-overlay')).toBeHidden();
   await expect(page.locator('#clock-caption')).toHaveText('1 of 36 drops');
 
-  // The deterministic first drop is (10.5, 2.9), near Red's (8.5, 5.5).
+  // The deterministic first drop is (10.5, 4.15), near Red's (8.5, 7.5).
   await page.keyboard.down('w');
-  await advance(page, 320);
+  await advance(page, 430);
   await page.keyboard.up('w');
   await page.keyboard.down('d');
   await advance(page, 320);
@@ -76,7 +76,7 @@ test('a real browser can render, collect, bury, pause, finish, and rematch', asy
   await page.keyboard.up('ArrowLeft');
   await advance(page, 250);
   await page.keyboard.down('ArrowUp');
-  await advance(page, 370);
+  await advance(page, 480);
   await page.keyboard.up('ArrowUp');
   await advance(page, 250);
   await expect(page.locator('#grey-carry')).toHaveText('Acorn in paws');

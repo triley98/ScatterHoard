@@ -98,7 +98,7 @@ export class MatchRoom {
     this.expireReconnect(now);
     if (this.game.phase === 'countdown') {
       this.countdown = Math.max(0, this.countdown - dt);
-      if (!this.countdown) this.game.start();
+      if (!this.countdown) this.game.start(true);
     } else if (['playing', 'intermission'].includes(this.game.phase)) {
       this.game.update(
         dt,
@@ -130,6 +130,7 @@ export class MatchRoom {
       code: this.code,
       epoch: this.epoch,
       countdown: this.countdown,
+      resumePhase: this.resumePhase || this.game.resumePhase,
       seats: this.connected.map((connected, slot) => ({
         connected,
         ready: this.ready[slot],

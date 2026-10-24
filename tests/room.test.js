@@ -123,6 +123,9 @@ test('online rounds retain the authoritative board and synchronize intermission 
   room.tick(64000);
   assert.equal(room.game.phase, 'intermission');
   assert.deepEqual(room.game.scores, [1, 0]);
+  assert.equal(room.game.acorns.length, 0);
+  assert.deepEqual(room.snapshot().players.map(p => [p.x, p.z, p.carrying]), [[8.5, 7.5, false], [31.5, 7.5, false]]);
+  const rocks = room.snapshot().rocks;
   const epoch = room.epoch;
   room.disconnect(1, 64000);
   room.tick(65000);
@@ -134,6 +137,8 @@ test('online rounds retain the authoritative board and synchronize intermission 
   assert.equal(snapshot.round, 2);
   assert.equal(snapshot.phase, 'playing');
   assert.equal(snapshot.epoch, epoch);
+  assert.deepEqual(snapshot.rocks, rocks);
+  assert.equal(snapshot.acorns.length, 1);
   assert.equal(room.game.buried.size, 1);
   assert.deepEqual(snapshot.scores, [1, 0]);
   assert.equal('buried' in snapshot, false);

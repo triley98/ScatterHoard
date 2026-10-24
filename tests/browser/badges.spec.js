@@ -21,6 +21,10 @@ test('all powerups use the requested octagonal icons above their player, without
   await page.clock.pauseAt(new Date('2026-10-24T00:10:00Z'));
   await page.getByRole('button', { name: 'Let’s forage' }).click();
   await advance(page, 3200);
+  await page.keyboard.press('Space');
+  await advance(page, 700);
+  await expect(page.locator('[data-icon="miss"]')).toHaveCount(0);
+  await expect(page.locator('.octagon-badge')).toHaveCount(0);
   for (const [selection, icon, harmful] of [
     [0.1, 'acorn-rain', false],
     [0.3, 'winged-feet', false],

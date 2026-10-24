@@ -1,6 +1,6 @@
 export const RULES = Object.freeze({
   width: 40,
-  depth: 10,
+  depth: 15,
   half: 20,
   duration: 60,
   rounds: 3,
@@ -25,17 +25,35 @@ export const POWERUPS = [
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 export const cellAt = (x, z) => ({
-  col: clamp(Math.floor(x), 0, 39),
-  row: clamp(Math.floor(z), 0, 9),
+  col: clamp(Math.floor(x), 0, RULES.width - 1),
+  row: clamp(Math.floor(z), 0, RULES.depth - 1),
 });
 export const cellKey = ({ col, row }) => `${col},${row}`;
 export const territoryFor = (col) => (col < RULES.half ? 0 : 1);
+
+export function overlapsRock(x, z, rock, radius = RULES.playerRadius) {
+  const nearX = clamp(x, rock.x, rock.x + rock.width);
+  const nearZ = clamp(z, rock.z, rock.z + rock.depth);
+  return Math.hypot(x - nearX, z - nearZ) < radius;
+}
+
+function makeRocks(random) {
+  // Two separated bands leave a clear route from the trees and around every rock.
+  const left = [0, 1].map((band) => ({
+    x: 3 + Math.floor(random() * 13),
+    z: band === 0 ? 1 + Math.floor(random() * 3) : 10 + Math.floor(random() * 3),
+    width: 2, depth: 2,
+  }));
+  return [...left, ...left.map((rock) => ({
+    ...rock, x: RULES.width - rock.x - rock.width,
+  }))];
+}
 
 function newPlayer(id) {
   return {
     id,
     x: id === 0 ? 8.5 : 31.5,
-    z: 5.5,
+    z: RULES.depth / 2,
     vx: 0,
     vz: 0,
     carrying: false,
@@ -64,6 +82,7 @@ export class Game {
     this.nextDrop = 0;
     this.players = [newPlayer(0), newPlayer(1)];
     this.acorns = [];
+    this.rocks = makeRocks(this.random);
     this.buried = new Map();
     this.scores = [0, 0];
     this.events = [];
@@ -87,8 +106,8 @@ export class Game {
         : 1;
   }
 
-  start() {
-    this.reset();
+  start(prepared = false) {
+    if (!prepared) this.reset();
     this.phase = 'playing';
     this.dropAcorn();
     this.nextDrop = RULES.dropInterval;
@@ -121,10 +140,21 @@ export class Game {
       z = 0.8 + this.random() * (RULES.depth - 1.6);
       const key = cellKey(cellAt(x, z));
       if (
+        !this.rocks.some((rock) => overlapsRock(x, z, rock, 0.55)) &&
         !this.buried.has(key) &&
         !this.acorns.some((a) => cellKey(cellAt(a.x, a.z)) === key)
       )
         break;
+    }
+    // A fixed RNG or a crowded board must never leave a drop inside a rock.
+    if (this.rocks.some((rock) => overlapsRock(x, z, rock, 0.55))) {
+      outer: for (let row = 0; row < RULES.depth; row++)
+        for (let col = side === null ? 0 : side * RULES.half;
+          col < (side === null ? RULES.width : (side + 1) * RULES.half); col++) {
+          if (!this.rocks.some((rock) => overlapsRock(col + 0.5, row + 0.5, rock, 0.55))) {
+            x = col + 0.5; z = row + 0.5; break outer;
+          }
+        }
     }
     const acorn = { id: this.nextId++, x, z, born: this.matchElapsed };
     this.acorns.push(acorn);
@@ -228,16 +258,31 @@ export class Game {
       const blend = change > maxChange ? maxChange / change : 1;
       player.vx += dx * blend;
       player.vz += dz * blend;
+      const oldX = player.x, oldZ = player.z;
       player.x = clamp(
         player.x + player.vx * dt,
         RULES.playerRadius,
         RULES.width - RULES.playerRadius,
       );
+      for (const rock of this.rocks) {
+        if (!overlapsRock(player.x, oldZ, rock)) continue;
+        const gap = Math.max(rock.z - oldZ, oldZ - rock.z - rock.depth, 0);
+        const reach = Math.sqrt(Math.max(0, RULES.playerRadius ** 2 - gap ** 2));
+        player.x = oldX < rock.x ? rock.x - reach : rock.x + rock.width + reach;
+        player.vx = 0;
+      }
       player.z = clamp(
         player.z + player.vz * dt,
         RULES.playerRadius,
         RULES.depth - RULES.playerRadius,
       );
+      for (const rock of this.rocks) {
+        if (!overlapsRock(player.x, player.z, rock)) continue;
+        const gap = Math.max(rock.x - player.x, player.x - rock.x - rock.width, 0);
+        const reach = Math.sqrt(Math.max(0, RULES.playerRadius ** 2 - gap ** 2));
+        player.z = oldZ < rock.z ? rock.z - reach : rock.z + rock.depth + reach;
+        player.vz = 0;
+      }
       if (magnitude > 0) player.facing = Math.atan2(x, z);
     }
 
@@ -271,7 +316,13 @@ export class Game {
     if (this.elapsed >= RULES.duration - 1e-8) {
       this.elapsed = RULES.duration;
       this.roundResults.push({ round: this.round, scores: [...this.scores] });
+      this.acorns = [];
       for (const player of this.players) {
+        const start = newPlayer(player.id);
+        player.x = start.x;
+        player.z = start.z;
+        player.facing = player.id === 0 ? Math.PI / 2 : -Math.PI / 2;
+        player.carrying = false;
         player.dig = null;
         player.vx = 0;
         player.vz = 0;
@@ -394,6 +445,7 @@ export class Game {
       scores: [...this.scores],
       drops: this.drops,
       bonusDrops: this.bonusDrops,
+      rocks: this.rocks.map((rock) => ({ ...rock })),
       acorns: this.acorns.map((a) => ({ ...a })),
       players: this.players.map(
         ({ id, x, z, vx, vz, carrying, facing, effect, effectUntil, dig }) => ({

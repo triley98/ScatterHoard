@@ -627,7 +627,7 @@ function frame(now) {
     }
     if (countdown <= 0) {
       $('countdown-overlay').hidden = true;
-      game.start();
+      game.start(true);
       clearInputs();
       audio.play('go');
     }
@@ -638,6 +638,7 @@ function frame(now) {
     nextUI = now + 80;
   }
   if (forest) {
+    game.countdown = online ? remoteState?.countdown : countdown;
     forest.render(now / 1000, dt);
     badges.render(forest, game, dt);
   }

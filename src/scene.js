@@ -214,7 +214,7 @@ export class ForestScene {
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.23;
@@ -243,6 +243,11 @@ export class ForestScene {
     this.particles = [];
     this.makeLandscape();
     this.makeBoard();
+    this.rockGroup = new THREE.Group();
+    this.scene.add(this.rockGroup);
+    this.rockLayout = '';
+    this.makeEndTrees();
+    this.makeBoardTexture();
     this.squirrels = [makeSquirrel(0), makeSquirrel(1)];
     for (const squirrel of this.squirrels) this.scene.add(squirrel.root);
     this.demoAcorns = new THREE.Group();
@@ -267,7 +272,7 @@ export class ForestScene {
       this.canvas.parentElement;
     if (!width || !height) return;
     const aspect = width / height;
-    const halfWidth = 23.3;
+    const halfWidth = Math.max(26.5, 11.5 * aspect);
     const halfHeight = halfWidth / aspect;
     Object.assign(this.camera, {
       left: -halfWidth,
@@ -302,7 +307,7 @@ export class ForestScene {
     for (let i = 0; i < 80; i++) {
       const x = (random() - 0.5) * 54;
       const z = (random() - 0.5) * 28;
-      if (Math.abs(x) < 21.3 && Math.abs(z) < 6.6) continue;
+      if (Math.abs(x) < 21.3 && Math.abs(z) < RULES.depth / 2 + 1.6) continue;
       const size = 0.4 + random() * 1.3;
       const patch = mesh(
         geometries.lowSphere,
@@ -349,7 +354,7 @@ export class ForestScene {
     trees.push([-18, 8, 2.1], [-10, 9, 2.2], [11, 8.7, 2.5], [19, 8.4, 2.3]);
     for (const [x, z, h] of trees) {
       const tree = new THREE.Group();
-      tree.position.set(x, -0.8, z);
+      tree.position.set(x, -0.8, z < -7 ? z - 3 : z > 7 ? z + 3 : z);
       mesh(
         geometries.cylinder,
         trunkMat,
@@ -413,14 +418,14 @@ export class ForestScene {
 
   makeBoard() {
     mesh(
-      new THREE.BoxGeometry(40.3, 0.55, 10.3),
+      new THREE.BoxGeometry(RULES.width + 0.3, 0.55, RULES.depth + 0.3),
       material(0x4c4d32),
       [0, -0.35, 0],
       null,
       this.scene,
     );
     mesh(
-      new THREE.BoxGeometry(40.15, 0.12, 10.15),
+      new THREE.BoxGeometry(RULES.width + 0.15, 0.12, RULES.depth + 0.15),
       material(0x9a9861),
       [0, -0.04, 0],
       null,
@@ -437,20 +442,20 @@ export class ForestScene {
     mesh(
       new THREE.BoxGeometry(19.9, 0.035, 0.075),
       material(0xd5976a),
-      [-10, 0.035, 5.02],
+      [-10, 0.035, RULES.depth / 2 + 0.02],
       null,
       this.scene,
     );
     mesh(
       new THREE.BoxGeometry(19.9, 0.035, 0.075),
       material(0xb3c6a4),
-      [10, 0.035, 5.02],
+      [10, 0.035, RULES.depth / 2 + 0.02],
       null,
       this.scene,
     );
     const postMat = material(0xc0a67b);
     for (const x of [-20.2, 0, 20.2]) {
-      for (const z of [-5.2, 5.2]) {
+      for (const z of [-RULES.depth / 2 - 0.2, RULES.depth / 2 + 0.2]) {
         mesh(
           geometries.cylinder,
           postMat,
@@ -466,6 +471,84 @@ export class ForestScene {
           this.scene,
         );
       }
+    }
+  }
+
+  makeEndTrees() {
+    const bark = material(0x67482f);
+    const leaves = [material(0x456c42), material(0x5d7e46), material(0x77944f)];
+    for (const side of [-1, 1]) {
+      const tree = new THREE.Group();
+      tree.position.set(side * (RULES.width / 2 + 1.25), 0, 0);
+      mesh(geometries.cylinder, bark, [0, 2.5, 0], [0.65, 5, 0.65], tree);
+      for (let i = 0; i < 5; i++) {
+        const angle = i * Math.PI * 2 / 5;
+        const root = mesh(geometries.cone, bark,
+          [Math.cos(angle) * 0.5, 0.22, Math.sin(angle) * 0.5], [0.35, 1.2, 0.35], tree);
+        root.rotation.z = Math.cos(angle) * 0.6;
+        root.rotation.x = Math.sin(angle) * 0.6;
+      }
+      for (const [x, y, z, size] of [[0, 5.8, 0, 2], [-1.1, 5, 0, 1.5], [1, 5.2, 0.2, 1.5], [0, 5.3, -1, 1.5]])
+        mesh(geometries.lowSphere, leaves[Math.floor(y * 3) % 3], [x, y, z], [size, size * 0.8, size], tree);
+      // Bark ridges give the climbing route a readable vertical surface.
+      for (let i = 0; i < 6; i++) {
+        const angle = i * Math.PI / 3;
+        mesh(geometries.cylinder, material(0x806043),
+          [Math.sin(angle) * 0.64, 2.2, Math.cos(angle) * 0.64], [0.035, 4.3, 0.035], tree);
+      }
+      this.scene.add(tree);
+    }
+  }
+
+  makeBoardTexture() {
+    // Fixed decoration never responds to digging or reveals hidden acorns.
+    const random = seededRandom(872);
+    const leafGeometry = new THREE.SphereGeometry(1, 5, 3);
+    const leafMaterials = [0xb99854, 0xa76c40, 0x998d4e].map((c) => material(c));
+    const bladeGeometry = new THREE.ConeGeometry(1, 1, 3);
+    for (let i = 0; i < 3; i++) {
+      const leaves = new THREE.InstancedMesh(leafGeometry, leafMaterials[i], 90);
+      const transform = new THREE.Object3D();
+      for (let j = 0; j < 90; j++) {
+        transform.position.set((random() - 0.5) * 39, 0.07, (random() - 0.5) * (RULES.depth - 0.7));
+        transform.scale.set(0.09 + random() * 0.09, 0.018, 0.18 + random() * 0.12);
+        transform.rotation.y = random() * Math.PI * 2;
+        transform.updateMatrix(); leaves.setMatrixAt(j, transform.matrix);
+      }
+      leaves.receiveShadow = true;
+      this.scene.add(leaves);
+    }
+    const blades = new THREE.InstancedMesh(bladeGeometry, material(0x637c43), 360);
+    const transform = new THREE.Object3D();
+    for (let clump = 0; clump < 90; clump++) {
+      const x = (random() - 0.5) * 39, z = (random() - 0.5) * (RULES.depth - 0.7);
+      for (let blade = 0; blade < 4; blade++) {
+        const height = 0.12 + random() * 0.14;
+        transform.position.set(x + (random() - 0.5) * 0.25, height / 2 + 0.04, z + (random() - 0.5) * 0.25);
+        transform.scale.set(0.035, height, 0.035);
+        transform.rotation.set((random() - 0.5) * 0.6, random() * 6, (random() - 0.5) * 0.6);
+        transform.updateMatrix(); blades.setMatrixAt(clump * 4 + blade, transform.matrix);
+      }
+    }
+    this.scene.add(blades);
+  }
+
+  syncRocks() {
+    const layout = JSON.stringify(this.game.rocks || []);
+    if (layout === this.rockLayout) return;
+    this.rockLayout = layout;
+    for (const child of [...this.rockGroup.children]) {
+      this.rockGroup.remove(child);
+      if (!Object.values(geometries).includes(child.geometry)) child.geometry.dispose();
+      child.material.dispose();
+    }
+    for (const rock of this.game.rocks || []) {
+      const stone = mesh(geometries.lowSphere, material(0x849087),
+        [rock.x + rock.width / 2 - RULES.width / 2, 0.65, rock.z + rock.depth / 2 - RULES.depth / 2],
+        [rock.width / 2, 0.9, rock.depth / 2], this.rockGroup);
+      // A solid square base matches the collision footprint; the crown is faceted.
+      mesh(new THREE.BoxGeometry(rock.width, 0.45, rock.depth), material(0x737e73),
+        [stone.position.x, 0.25, stone.position.z], null, this.rockGroup);
     }
   }
 
@@ -570,8 +653,9 @@ export class ForestScene {
 
   render(time, dt) {
     const { game } = this;
+    this.syncRocks();
     const active = game.phase === 'playing';
-    const animate = !this.reducedMotion && game.phase !== 'paused';
+    const animate = !this.reducedMotion && !['paused', 'paused-countdown'].includes(game.phase);
     this.demoAcorns.visible = game.phase === 'ready';
     if (animate) {
       this.demoAcorns.children.forEach((acorn, i) => {
@@ -586,16 +670,32 @@ export class ForestScene {
         squirrel.root.position.x +=
           (player.x - 20 - squirrel.root.position.x) * blend;
         squirrel.root.position.z +=
-          (player.z - 5 - squirrel.root.position.z) * blend;
+          (player.z - RULES.depth / 2 - squirrel.root.position.z) * blend;
         squirrel.root.position.y = 0.055;
-      } else squirrel.root.position.set(player.x - 20, 0.055, player.z - 5);
+      } else squirrel.root.position.set(player.x - 20, 0.055, player.z - RULES.depth / 2);
+      const intro = game.phase === 'countdown' || game.phase === 'intermission' ||
+        game.phase === 'paused-countdown' || (game.phase === 'paused' && ['countdown', 'intermission'].includes(game.resumePhase));
+      let entering = false;
+      if (intro && !this.reducedMotion) {
+        const remaining = game.phase === 'intermission' || game.resumePhase === 'intermission'
+          ? game.intermissionRemaining : game.countdown ?? 3;
+        const progress = THREE.MathUtils.clamp(1 - remaining / 3, 0, 1);
+        const side = player.id === 0 ? -1 : 1;
+        const treeX = side * (RULES.width / 2 + 0.55);
+        const descend = Math.min(1, progress / 0.45);
+        const run = Math.max(0, (progress - 0.45) / 0.55);
+        squirrel.root.position.set(THREE.MathUtils.lerp(treeX, player.x - RULES.width / 2, run),
+          0.055 + (1 - descend) * 3.7, 0.85 * (1 - run));
+        entering = true;
+        squirrel.rotation = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+      }
       const diff = Math.atan2(
         Math.sin(player.facing - squirrel.rotation),
         Math.cos(player.facing - squirrel.rotation),
       );
-      squirrel.rotation += diff * Math.min(1, dt * 14);
+      if (!entering) squirrel.rotation += diff * Math.min(1, dt * 14);
       squirrel.body.rotation.y = squirrel.rotation;
-      const moving = active && Math.hypot(player.vx, player.vz) > 0.3;
+      const moving = entering || (active && Math.hypot(player.vx, player.vz) > 0.3);
       const runCycle = time * 21;
       squirrel.body.position.y =
         animate && moving
@@ -603,7 +703,7 @@ export class ForestScene {
           : animate
             ? Math.sin(time * 2 + player.id) * 0.025
             : 0;
-      squirrel.body.rotation.x = player.dig
+      squirrel.body.rotation.x = entering && squirrel.root.position.y > 0.2 ? -0.55 : player.dig
         ? 0.18 + Math.sin(time * 30) * 0.15
         : 0;
       squirrel.feet.forEach((foot, i) => {
@@ -637,7 +737,7 @@ export class ForestScene {
       let object = this.acornMeshes.get(acorn.id);
       if (!object) {
         object = this.createWorldAcorn();
-        object.position.set(acorn.x - 20, 0.05, acorn.z - 5);
+        object.position.set(acorn.x - 20, 0.05, acorn.z - RULES.depth / 2);
         this.acornMeshes.set(acorn.id, object);
         this.scene.add(object);
       }
