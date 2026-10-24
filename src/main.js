@@ -506,7 +506,7 @@ function syncUI() {
     'intermission',
   ].includes(phase);
   $('countdown-label').textContent = between
-    ? `ROUND ${game.round + 1} OF ${RULES.rounds} · SAME CLEARING`
+    ? `ROUND ${game.round + 1} OF ${RULES.rounds} · ${game.intermissionRemaining > 3 ? 'A MOMENT TO REGROUP' : 'PAWS AT THE READY'}`
     : 'ROUND 1 OF 3 · PAWS AT THE READY';
   $('countdown-number').textContent = Math.max(
     1,

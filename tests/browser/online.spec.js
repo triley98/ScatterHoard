@@ -6,10 +6,12 @@ test('two separate browsers host, join, synchronize movement, reconnect, and kee
   test.setTimeout(90000);
   const hostContext = await browser.newContext({
     baseURL: 'http://127.0.0.1:5173',
+    deviceScaleFactor: 0.5,
     viewport: { width: 1100, height: 850 },
   });
   const guestContext = await browser.newContext({
     baseURL: 'http://127.0.0.1:5173',
+    deviceScaleFactor: 0.5,
     viewport: { width: 1100, height: 850 },
   });
   const host = await hostContext.newPage(),

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { RULES } from './game.js';
 import { poseSquirrel } from './squirrel-motion.js';
-import { makeLandscape, makeRock } from './landscape.js';
+import { roundLighting, WindLeaves } from './atmosphere.js';
+import { makeLandscape, makeRock, makeStump } from './landscape.js';
 
 const colors = {
   red: 0xb6653e,
@@ -229,8 +230,12 @@ export class ForestScene {
     this.camera = new THREE.OrthographicCamera(-23, 23, 10, -10, 0.1, 150);
     this.camera.position.set(0, 40, 40);
     this.camera.lookAt(0, 0, 0); // Exactly 45 degrees to the horizontal ground.
-    this.scene.add(new THREE.HemisphereLight(0xfff1d0, 0x52664a, 2.25));
+    this.ambient = new THREE.HemisphereLight(0xfff1d0, 0x52664a, 2.25);
+    this.scene.add(this.ambient);
     const sun = new THREE.DirectionalLight(0xffe4ae, 3.2);
+    this.sun = sun;
+    this.daySun = new THREE.Color(0xffe4ae);
+    this.duskSun = new THREE.Color(0xffb47a);
     sun.position.set(-14, 25, 14);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -256,6 +261,7 @@ export class ForestScene {
     this.rockLayout = '';
     this.makeEndTrees();
     this.makeBoardTexture();
+    this.windLeaves = new WindLeaves(this.scene);
     this.squirrels = [makeSquirrel(0), makeSquirrel(1)];
     for (const squirrel of this.squirrels) this.scene.add(squirrel.root);
     this.demoAcorns = new THREE.Group();
@@ -285,8 +291,8 @@ export class ForestScene {
     Object.assign(this.camera, {
       left: -halfWidth,
       right: halfWidth,
-      top: halfHeight,
-      bottom: -halfHeight,
+      top: halfHeight + 1.2,
+      bottom: -halfHeight + 1.2,
     });
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
@@ -411,7 +417,7 @@ export class ForestScene {
   }
 
   syncRocks() {
-    const layout = JSON.stringify(this.game.rocks || []);
+    const layout = JSON.stringify([this.game.rocks || [], this.game.stumps || []]);
     if (layout === this.rockLayout) return;
     this.rockLayout = layout;
     for (const child of [...this.rockGroup.children]) {
@@ -420,6 +426,9 @@ export class ForestScene {
     }
     (this.game.rocks || []).forEach((rock, index) => {
       this.rockGroup.add(makeRock(rock, index));
+    });
+    (this.game.stumps || []).forEach((stump, index) => {
+      this.rockGroup.add(makeStump(stump, index));
     });
   }
 
@@ -527,6 +536,12 @@ export class ForestScene {
     this.syncRocks();
     const active = game.phase === 'playing';
     const animate = !this.reducedMotion && !['paused', 'paused-countdown'].includes(game.phase);
+    const light = roundLighting(game.elapsed);
+    this.sun.position.set(...light.position);
+    this.sun.intensity = light.sunIntensity;
+    this.sun.color.copy(this.daySun).lerp(this.duskSun, light.dusk);
+    this.ambient.intensity = light.ambientIntensity;
+    this.windLeaves.update(dt, { active: animate, reducedMotion: this.reducedMotion });
     this.demoAcorns.visible = game.phase === 'ready';
     if (animate) {
       this.demoAcorns.children.forEach((acorn, i) => {
@@ -563,7 +578,7 @@ export class ForestScene {
         climbPitch = climb * Math.PI / 2;
         squirrel.root.position.set(THREE.MathUtils.lerp(treeX, player.x - RULES.width / 2, run),
           0.055 + (1 - descend) * 6.2 + climb * 1.2, 1.15 * (1 - run));
-        entering = true;
+        entering = remaining <= 3;
         squirrel.rotation = (side < 0 ? Math.PI / 2 : -Math.PI / 2) * turn;
       }
       const diff = Math.atan2(

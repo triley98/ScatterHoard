@@ -93,7 +93,7 @@ test('a 30-second reconnect timeout resets the round; both players can ready for
   room.setReady(1);
   room.tick(38001);
   assert.equal(room.game.phase, 'playing');
-  room.tick(224001);
+  room.tick(228001);
   assert.equal(room.game.phase, 'finished');
   room.setReady(0);
   assert.equal(room.game.phase, 'finished');
@@ -126,18 +126,23 @@ test('online rounds retain the authoritative board and synchronize intermission 
   assert.equal(room.game.acorns.length, 0);
   assert.deepEqual(room.snapshot().players.map(p => [p.x, p.z, p.carrying]), [[8.5, 7.5, false], [31.5, 7.5, false]]);
   const rocks = room.snapshot().rocks;
+  const stumps = room.snapshot().stumps;
   const epoch = room.epoch;
   room.disconnect(1, 64000);
   room.tick(65000);
   assert.equal(room.game.phase, 'paused');
   room.join('guest-secret', () => '', 65000);
   assert.equal(room.game.phase, 'intermission');
-  room.tick(68000);
+  room.tick(69000);
+  assert.equal(room.game.phase, 'intermission');
+  assert.equal(room.game.intermissionRemaining, 1);
+  room.tick(70000);
   const snapshot = room.snapshot();
   assert.equal(snapshot.round, 2);
   assert.equal(snapshot.phase, 'playing');
   assert.equal(snapshot.epoch, epoch);
   assert.deepEqual(snapshot.rocks, rocks);
+  assert.deepEqual(snapshot.stumps, stumps);
   assert.equal(snapshot.acorns.length, 1);
   assert.equal(room.game.buried.size, 1);
   assert.deepEqual(snapshot.scores, [1, 0]);
@@ -154,7 +159,7 @@ test('online round-three digging retrieves a round-one stash only from its origi
   const stash = { ...room.game.buried.get('12,8') };
   assert.deepEqual(stash, { col: 12, row: 8, territory: 0, player: 0 });
 
-  for (const [round, end, next] of [[1, 64000, 67000], [2, 127000, 130000]]) {
+  for (const [round, end, next] of [[1, 64000, 69000], [2, 129000, 134000]]) {
     room.tick(end);
     assert.equal(room.game.phase, 'intermission');
     assert.equal(room.game.round, round);
@@ -170,14 +175,14 @@ test('online round-three digging retrieves a round-one stash only from its origi
   }
 
   Object.assign(room.game.players[1], { x: 13.5, z: 8.5 });
-  room.input(1, { x: 0, z: 0, seq: 0, dig: true }, 130000);
-  room.tick(130600);
+  room.input(1, { x: 0, z: 0, seq: 0, dig: true }, 134000);
+  room.tick(134600);
   assert.equal(room.snapshot().players[1].carrying, false);
   assert.deepEqual(room.game.buried.get('12,8'), stash);
 
   Object.assign(room.game.players[1], { x: 12.8, z: 8.2 });
-  room.input(1, { x: 0, z: 0, seq: 1, dig: true }, 130600);
-  room.tick(131200);
+  room.input(1, { x: 0, z: 0, seq: 1, dig: true }, 134600);
+  room.tick(135200);
   assert.equal(room.snapshot().players[1].carrying, true);
   assert.equal(room.game.buried.has('12,8'), false);
   assert.deepEqual(room.snapshot().scores, [0, 0]);

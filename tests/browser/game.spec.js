@@ -115,11 +115,11 @@ test('a real browser can render, collect, bury, pause, finish, and rematch', asy
   await expect(page.locator('#round-label')).toHaveText('ROUND 2 OF 3');
   await expect(page.locator('#red-score')).toHaveText('2');
   await expect(page.locator('#results-dialog')).toBeHidden();
-  await advance(page, 63000);
+  await advance(page, 65000);
   await expect(page.locator('#round-label')).toHaveText('ROUND 3 OF 3');
   await expect(page.locator('#red-score')).toHaveText('2');
   await expect(page.locator('#results-dialog')).toBeHidden();
-  await advance(page, 63000);
+  await advance(page, 65000);
   await expect(page.locator('#clock')).toHaveText('00:00');
   await expect(page.locator('#results-dialog')).toBeVisible();
   await expect(page.locator('#results-title')).toContainText('Red takes');

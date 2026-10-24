@@ -4,7 +4,7 @@ export const RULES = Object.freeze({
   half: 20,
   duration: 60,
   rounds: 3,
-  intermission: 3,
+  intermission: 5,
   dropInterval: 5,
   speed: 7,
   acceleration: 32,
@@ -37,16 +37,26 @@ export function overlapsRock(x, z, rock, radius = RULES.playerRadius) {
   return Math.hypot(x - nearX, z - nearZ) < radius;
 }
 
-function makeRocks(random) {
-  // Two separated bands leave a clear route from the trees and around every rock.
-  const left = [0, 1].map((band) => ({
-    x: 3 + Math.floor(random() * 13),
-    z: band === 0 ? 1 + Math.floor(random() * 3) : 10 + Math.floor(random() * 3),
-    width: 2, depth: 2,
-  }));
-  return [...left, ...left.map((rock) => ({
-    ...rock, x: RULES.width - rock.x - rock.width,
+function makeObstacles(random) {
+  // Separate slots keep a broad central runway, space around each obstacle,
+  // and an open route along all four edges, even for repeated RNG values.
+  const rocks = [], stumps = [];
+  for (let band = 0; band < 2; band++) {
+    rocks.push({
+      x: 2 + Math.floor(random() * 5),
+      z: (band === 0 ? 1 : 10) + Math.floor(random() * 2),
+      width: 3, depth: 3,
+    });
+    stumps.push({
+      x: 12 + Math.floor(random() * 5),
+      z: (band === 0 ? 1 : 10) + Math.floor(random() * 3),
+      width: 2, depth: 2,
+    });
+  }
+  const mirror = (items) => [...items, ...items.map((obstacle) => ({
+    ...obstacle, x: RULES.width - obstacle.x - obstacle.width,
   }))];
+  return { rocks: mirror(rocks), stumps: mirror(stumps) };
 }
 
 function newPlayer(id) {
@@ -82,7 +92,9 @@ export class Game {
     this.nextDrop = 0;
     this.players = [newPlayer(0), newPlayer(1)];
     this.acorns = [];
-    this.rocks = makeRocks(this.random);
+    const obstacles = makeObstacles(this.random);
+    this.rocks = obstacles.rocks;
+    this.stumps = obstacles.stumps;
     this.buried = new Map();
     this.scores = [0, 0];
     this.events = [];
@@ -90,6 +102,10 @@ export class Game {
     this.bonusDrops = 0;
     this.nextId = 0;
     this.pickupPriority = 0;
+  }
+
+  get obstacles() {
+    return [...this.rocks, ...this.stumps];
   }
 
   get remaining() {
@@ -130,6 +146,7 @@ export class Game {
   }
 
   dropAcorn(side = null, bonus = false) {
+    const obstacles = this.obstacles;
     // Keep drops in the playable interior; retry occupied cells without unbounded loops.
     let x, z;
     for (let attempt = 0; attempt < 50; attempt++) {
@@ -140,18 +157,18 @@ export class Game {
       z = 0.8 + this.random() * (RULES.depth - 1.6);
       const key = cellKey(cellAt(x, z));
       if (
-        !this.rocks.some((rock) => overlapsRock(x, z, rock, 0.55)) &&
+        !obstacles.some((obstacle) => overlapsRock(x, z, obstacle, 0.55)) &&
         !this.buried.has(key) &&
         !this.acorns.some((a) => cellKey(cellAt(a.x, a.z)) === key)
       )
         break;
     }
-    // A fixed RNG or a crowded board must never leave a drop inside a rock.
-    if (this.rocks.some((rock) => overlapsRock(x, z, rock, 0.55))) {
+    // A fixed RNG or a crowded board must never leave a drop inside an obstacle.
+    if (obstacles.some((obstacle) => overlapsRock(x, z, obstacle, 0.55))) {
       outer: for (let row = 0; row < RULES.depth; row++)
         for (let col = side === null ? 0 : side * RULES.half;
           col < (side === null ? RULES.width : (side + 1) * RULES.half); col++) {
-          if (!this.rocks.some((rock) => overlapsRock(col + 0.5, row + 0.5, rock, 0.55))) {
+          if (!obstacles.some((obstacle) => overlapsRock(col + 0.5, row + 0.5, obstacle, 0.55))) {
             x = col + 0.5; z = row + 0.5; break outer;
           }
         }
@@ -216,6 +233,7 @@ export class Game {
   }
 
   step(dt, inputs) {
+    const obstacles = this.obstacles;
     this.elapsed = Math.min(RULES.duration, this.elapsed + dt);
     while (
       this.nextDrop < RULES.duration &&
@@ -264,7 +282,7 @@ export class Game {
         RULES.playerRadius,
         RULES.width - RULES.playerRadius,
       );
-      for (const rock of this.rocks) {
+      for (const rock of obstacles) {
         if (!overlapsRock(player.x, oldZ, rock)) continue;
         const gap = Math.max(rock.z - oldZ, oldZ - rock.z - rock.depth, 0);
         const reach = Math.sqrt(Math.max(0, RULES.playerRadius ** 2 - gap ** 2));
@@ -276,7 +294,7 @@ export class Game {
         RULES.playerRadius,
         RULES.depth - RULES.playerRadius,
       );
-      for (const rock of this.rocks) {
+      for (const rock of obstacles) {
         if (!overlapsRock(player.x, player.z, rock)) continue;
         const gap = Math.max(rock.x - player.x, player.x - rock.x - rock.width, 0);
         const reach = Math.sqrt(Math.max(0, RULES.playerRadius ** 2 - gap ** 2));
@@ -446,6 +464,7 @@ export class Game {
       drops: this.drops,
       bonusDrops: this.bonusDrops,
       rocks: this.rocks.map((rock) => ({ ...rock })),
+      stumps: this.stumps.map((stump) => ({ ...stump })),
       acorns: this.acorns.map((a) => ({ ...a })),
       players: this.players.map(
         ({ id, x, z, vx, vz, carrying, facing, effect, effectUntil, dig }) => ({

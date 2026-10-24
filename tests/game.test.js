@@ -19,7 +19,7 @@ function giveAcorn(game, id, x = 8.5, z = 5.5) {
   assert.equal(player.carrying, true);
 }
 
-test('three rounds last exactly 60 seconds each, with 12 drops per round and three-second breaks', () => {
+test('three rounds last exactly 60 seconds each, with 12 drops per round and five-second breaks', () => {
   const game = makeGame();
   for (let round = 1; round <= 3; round++) {
     assert.equal(game.round, round);
@@ -37,7 +37,7 @@ test('three rounds last exactly 60 seconds each, with 12 drops per round and thr
     assert.equal(game.roundResults.length, round);
     if (round < 3) {
       assert.equal(game.phase, 'intermission');
-      game.update(2.99, idle);
+      game.update(4.99, idle);
       assert.equal(game.phase, 'intermission');
       game.update(0.01, idle);
       assert.equal(game.phase, 'playing');
@@ -53,6 +53,7 @@ test('three rounds last exactly 60 seconds each, with 12 drops per round and thr
 test('movement is continuous, accelerates smoothly, and clamps to the 40 × 15 board', () => {
   const game = makeGame();
   game.rocks = [];
+  game.stumps = [];
   const start = game.players[0].x;
   game.update(0.1, [{ x: 1, z: 0 }, idle[1]]);
   assert.ok(
@@ -310,7 +311,7 @@ test('pause freezes the clock, movement, drops, and ongoing digs; resume continu
 test('match end rejects further movement and digs; rematch clears all round state', () => {
   const game = makeGame();
   giveAcorn(game, 0);
-  game.update(186, idle);
+  game.update(RULES.duration * RULES.rounds + RULES.intermission * (RULES.rounds - 1), idle);
   assert.equal(game.phase, 'finished');
   assert.equal(game.requestDig(0), false);
   const x = game.players[0].x;
@@ -355,18 +356,20 @@ test('round transitions retain buried stashes but reset positions and clear all 
   giveAcorn(game, 1, 30.5, 4.5);
   const board = game.buried;
   const rocks = JSON.stringify(game.rocks);
+  const stumps = JSON.stringify(game.stumps);
   game.update(60 - game.elapsed, idle);
   assert.equal(game.phase, 'intermission');
   assert.equal(game.acorns.length, 0);
   assert.deepEqual(game.players.map(p => [p.x, p.z, p.carrying, p.vx, p.vz]),
     [[8.5, 7.5, false, 0, 0], [31.5, 7.5, false, 0, 0]]);
-  game.update(3, idle);
+  game.update(RULES.intermission, idle);
   assert.equal(game.round, 2);
   assert.equal(game.buried, board);
   assert.deepEqual(game.scores, [1, 0]);
   assert.equal(game.acorns.length, 1);
   assert.equal(game.acorns[0].born, 60);
   assert.equal(JSON.stringify(game.rocks), rocks);
+  assert.equal(JSON.stringify(game.stumps), stumps);
   Object.assign(game.players[1], { x: 8.5, z: 5.5 });
   game.requestDig(1);
   game.update(RULES.digDuration, idle);
@@ -420,9 +423,9 @@ test('round breaks freeze movement and digging, pause cleanly, and preserve rema
   const x = game.players[0].x;
   game.pause();
   game.update(20, [{ x: 1, z: 0 }, idle[1]]);
-  assert.equal(game.intermissionRemaining, 3);
+  assert.equal(game.intermissionRemaining, 5);
   game.resume();
-  game.update(3, [{ x: 1, z: 0 }, idle[1]]);
+  game.update(RULES.intermission, [{ x: 1, z: 0 }, idle[1]]);
   assert.equal(game.players[0].x, x);
   assert.equal(game.round, 2);
   assert.ok(
@@ -440,7 +443,7 @@ test('only the final board decides the match and each round keeps its own score 
   game.update(60 - game.elapsed, idle);
   assert.deepEqual(game.roundResults[0], { round: 1, scores: [1, 0] });
   assert.equal(game.phase, 'intermission');
-  game.update(3, idle);
+  game.update(RULES.intermission, idle);
   Object.assign(game.players[1], { x: 8.5, z: 5.5 });
   game.requestDig(1);
   game.update(RULES.digDuration, idle);
@@ -450,7 +453,7 @@ test('only the final board decides the match and each round keeps its own score 
   game.update(60 - game.elapsed, idle);
   assert.deepEqual(game.roundResults[0].scores, [1, 0]);
   assert.deepEqual(game.roundResults[1].scores, [0, 1]);
-  game.update(62.5, idle);
+  game.update(RULES.intermission + RULES.duration - 0.5, idle);
   game.applyPowerup(game.players[0], 'speed-boost');
   game.update(0.5, idle);
   assert.equal(game.phase, 'finished');
@@ -466,57 +469,87 @@ test('only the final board decides the match and each round keeps its own score 
   );
 });
 
-test('rocks are two cells square, separated, mirrored, random, and clear of starts', () => {
+test('3×3 rocks and 2×2 stumps are random, mirrored, separated, and clear of starts and the runway', () => {
   const a = new Game({ random: () => 0.1 });
   const b = new Game({ random: () => 0.8 });
   assert.notDeepEqual(a.rocks, b.rocks);
-  for (const game of [a, b]) {
-    assert.equal(game.rocks.length, 4);
-    for (let i = 0; i < 2; i++) {
-      const rock = game.rocks[i], mirrored = game.rocks[i + 2];
-      assert.deepEqual(mirrored, { ...rock, x: RULES.width - rock.x - 2 });
-      assert.equal(rock.width, 2); assert.equal(rock.depth, 2);
-      assert.ok(game.players.every(p => !overlapsRock(p.x, p.z, rock)));
+  assert.notDeepEqual(a.stumps, b.stumps);
+  for (const game of [a, b, new Game({ random: () => 0 }), new Game({ random: () => 0.9999 })]) {
+    for (const [items, size] of [[game.rocks, 3], [game.stumps, 2]]) {
+      assert.equal(items.length, 4);
+      for (let i = 0; i < 2; i++) {
+        const obstacle = items[i], mirrored = items[i + 2];
+        assert.deepEqual(mirrored, { ...obstacle, x: RULES.width - obstacle.x - size });
+        assert.equal(obstacle.width, size); assert.equal(obstacle.depth, size);
+        assert.ok(game.players.every(p => !overlapsRock(p.x, p.z, obstacle)));
+      }
     }
+    for (const obstacle of game.obstacles) {
+      assert.ok(obstacle.x >= 1 && obstacle.x + obstacle.width <= RULES.width - 1);
+      assert.ok(obstacle.z >= 1 && obstacle.z + obstacle.depth <= RULES.depth - 1);
+      assert.ok(obstacle.z + obstacle.depth <= 5 || obstacle.z >= 10);
+    }
+    const obstacles = game.obstacles;
+    for (let i = 0; i < obstacles.length; i++)
+      for (let j = i + 1; j < obstacles.length; j++) {
+        const left = obstacles[i], right = obstacles[j];
+        const gapX = Math.max(left.x - right.x - right.width, right.x - left.x - left.width, 0);
+        const gapZ = Math.max(left.z - right.z - right.depth, right.z - left.z - left.depth, 0);
+        assert.ok(Math.hypot(gapX, gapZ) >= 1);
+      }
+    for (let x = 0.5; x < RULES.width; x++)
+      assert.ok(obstacles.every(obstacle => !overlapsRock(x, 7.5, obstacle)));
   }
 });
 
-test('rocks stop fast movement from all four directions and allow sliding', () => {
-  for (const [x, z, dx, dz, axis, boundary] of [
-    [7, 6, 1, 0, 'x', 10 - RULES.playerRadius],
-    [15, 6, -1, 0, 'x', 12 + RULES.playerRadius],
-    [11, 2, 0, 1, 'z', 5 - RULES.playerRadius],
-    [11, 10, 0, -1, 'z', 7 + RULES.playerRadius],
-  ]) {
+test('both solid obstacle types stop fast movement from all four directions and allow sliding', () => {
+  for (const [kind, size] of [['rocks', 3], ['stumps', 2]]) {
+    for (const [x, z, dx, dz, axis, boundary] of [
+      [7, 6, 1, 0, 'x', 10 - RULES.playerRadius],
+      [16, 6, -1, 0, 'x', 10 + size + RULES.playerRadius],
+      [11, 2, 0, 1, 'z', 5 - RULES.playerRadius],
+      [11, 11, 0, -1, 'z', 5 + size + RULES.playerRadius],
+    ]) {
+      const game = makeGame();
+      game.rocks = []; game.stumps = [];
+      game[kind] = [{ x: 10, z: 5, width: size, depth: size }];
+      Object.assign(game.players[0], { x, z });
+      game.applyPowerup(game.players[0], 'speed-boost');
+      game.update(1, [{ x: dx, z: dz }, idle[1]]);
+      assert.ok(Math.abs(game.players[0][axis] - boundary) < 1e-6);
+      assert.ok(!overlapsRock(game.players[0].x, game.players[0].z, game[kind][0], RULES.playerRadius - 1e-6));
+    }
     const game = makeGame();
-    game.rocks = [{ x: 10, z: 5, width: 2, depth: 2 }];
-    Object.assign(game.players[0], { x, z });
-    game.applyPowerup(game.players[0], 'speed-boost');
-    game.update(1, [{ x: dx, z: dz }, idle[1]]);
-    assert.ok(Math.abs(game.players[0][axis] - boundary) < 1e-6);
-    assert.ok(!overlapsRock(game.players[0].x, game.players[0].z, game.rocks[0], RULES.playerRadius - 1e-6));
+    game.rocks = []; game.stumps = [];
+    game[kind] = [{ x: 10, z: 5, width: size, depth: size }];
+    Object.assign(game.players[0], { x: 9.5, z: 5.5 });
+    game.update(0.4, [{ x: 1, z: 1 }, idle[1]]);
+    assert.ok(game.players[0].z > 6);
+    assert.ok(game.players[0].x <= 10 - RULES.playerRadius + 1e-6);
   }
-  const game = makeGame();
-  game.rocks = [{ x: 10, z: 5, width: 2, depth: 2 }];
-  Object.assign(game.players[0], { x: 9.5, z: 5.5 });
-  game.update(0.4, [{ x: 1, z: 1 }, idle[1]]);
-  assert.ok(game.players[0].z > 6);
-  assert.ok(game.players[0].x <= 10 - RULES.playerRadius + 1e-6);
 });
 
-test('normal and bonus drops avoid rocks even when the RNG repeats an obstructed point', () => {
-  const game = makeGame();
-  game.rocks = [{ x: 19, z: 7, width: 2, depth: 2 }];
-  for (const side of [null, 0, 1]) {
-    const acorn = game.dropAcorn(side, side !== null);
-    assert.ok(!game.rocks.some(r => overlapsRock(acorn.x, acorn.z, r, 0.55)));
+test('normal and bonus drops avoid rocks and stumps even when the RNG repeats an obstructed point', () => {
+  for (const kind of ['rocks', 'stumps']) {
+    const game = makeGame();
+    game.rocks = []; game.stumps = [];
+    // Repeat an obstructed point for global and both half-specific drops.
+    for (const side of [null, 0, 1]) {
+      game[kind] = [{ x: side === null ? 19 : side * 20 + 9, z: 7, width: 3, depth: 3 }];
+      const acorn = game.dropAcorn(side, side !== null);
+      assert.ok(!game.obstacles.some(obstacle => overlapsRock(acorn.x, acorn.z, obstacle, 0.55)));
+      if (side !== null) assert.ok(acorn.x >= side * 20 && acorn.x < (side + 1) * 20);
+    }
   }
 });
 
 test('starting a prepared countdown preserves the layout that both players saw', () => {
   const game = makeGame();
   const rocks = JSON.stringify(game.rocks);
+  const stumps = JSON.stringify(game.stumps);
   game.phase = 'countdown'; game.start(true);
   assert.equal(JSON.stringify(game.rocks), rocks);
+  assert.equal(JSON.stringify(game.stumps), stumps);
   assert.deepEqual(game.snapshot().rocks, game.rocks);
+  assert.deepEqual(game.snapshot().stumps, game.stumps);
 });

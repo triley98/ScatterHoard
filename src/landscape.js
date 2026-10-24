@@ -45,12 +45,21 @@ export function makeLandscape(scene) {
   for (const side of [-1, 1])
     for (let i = 0; i < 6; i++)
       trees.push([side * (25.8 + random() * 2), -8 + i * 3.2, 2.4 + random() * 1.5]);
-  trees.push([-17, 11.3, 2.1], [-9, 12.8, 2.2], [10, 12.3, 2.5], [18, 11.8, 2.3]);
-  for (const [x, z, h] of trees) {
+  // The five tall trees sit just beyond the back edge, behind the playable clearing.
+  for (const [i, x] of [-17, -8.5, 0, 8.5, 17].entries())
+    trees.push([x, -RULES.depth / 2 - 1.8 - (i % 2) * 0.35, 8.2 + (i % 3) * 0.45, 'large-rear']);
+  // Low foreground trees are far enough from the front edge to leave the board in view.
+  for (const [i, x] of [-24, -20, -16, -12, -8, -4, 0, 4, 8, 12, 16, 20, 24].entries())
+    trees.push([x + (random() - 0.5) * 1.1, RULES.depth / 2 + 4.2 + (i % 3) * 1.1,
+      1.8 + random() * 0.7, 'small-front']);
+  for (const [x, z, h, kind] of trees) {
     const tree = new THREE.Group();
     tree.name = 'background-tree';
+    tree.userData.largeRearTree = kind === 'large-rear';
+    tree.userData.smallFrontTree = kind === 'small-front';
     tree.position.set(x, -0.8, z);
-    mesh(trunk, bark, [0, h * 0.28, 0], [0.13, h * 0.56, 0.13], tree);
+    const trunkRadius = 0.13 * Math.max(1, h / 4);
+    mesh(trunk, bark, [0, h * 0.28, 0], [trunkRadius, h * 0.56, trunkRadius], tree);
     for (let layer = 0; layer < 3; layer++) {
       const size = h * (0.36 - layer * 0.072);
       const crown = mesh(cone, treeLeaves[(layer + Math.floor(random() * 2)) % 4],
@@ -119,6 +128,7 @@ export function makeRock(rock, index = 0) {
   // The paired obstacle uses the same facets, reflected along with its placement.
   const random = seededRandom(481 + index % 2 * 97);
   const sides = 10;
+  const heightScale = Math.sqrt(rock.width * rock.depth) / 2;
   const vertices = [];
   for (let ring = 0; ring < 3; ring++) {
     for (let i = 0; i < sides; i++) {
@@ -128,10 +138,10 @@ export function makeRock(rock, index = 0) {
       const x = squircle(Math.cos(angle)) * radius + (ring === 2 ? 0.08 : 0);
       const z = squircle(Math.sin(angle)) * radius;
       const y = ring === 0 ? -0.08 : ring === 1 ? 0.3 + random() * 0.15 : 0.85 + random() * 0.23;
-      vertices.push([x * rock.width / 2, y, z * rock.depth / 2]);
+      vertices.push([x * rock.width / 2, y * heightScale, z * rock.depth / 2]);
     }
   }
-  vertices.push([0.06, 1.18, -0.04]);
+  vertices.push([0.06, 1.18 * heightScale, -0.04]);
   const positions = [], colors = [];
   function triangle(a, b, c) {
     const shade = 0.83 + random() * 0.2;
@@ -159,5 +169,63 @@ export function makeRock(rock, index = 0) {
     rock.z + rock.depth / 2 - RULES.depth / 2);
   if (index >= 2) group.scale.x = -1;
   mesh(geometry, material(0xffffff, { vertexColors: true, flatShading: true }), [0, 0, 0], null, group);
+  return group;
+}
+
+
+/** A cut, rooted trunk with bark ridges and visible end-grain growth rings. */
+export function makeStump(stump, index = 0) {
+  const group = new THREE.Group();
+  group.name = 'tree-stump';
+  group.position.set(stump.x + stump.width / 2 - RULES.width / 2, 0.035,
+    stump.z + stump.depth / 2 - RULES.depth / 2);
+  group.scale.set(stump.width / 2 * (index >= 2 ? -1 : 1), 1, stump.depth / 2);
+  const bark = material(index % 2 ? 0x765037 : 0x69492f);
+  const darkBark = material(0x503b2a);
+  const cutWood = material(0xd2ae72);
+  const grain = material(0x9d753f);
+  const trunkGeometry = new THREE.CylinderGeometry(0.82, 0.94, 0.96, 14, 1);
+  const position = trunkGeometry.attributes.position;
+  for (let i = 0; i < position.count; i++) {
+    const angle = Math.atan2(position.getZ(i), position.getX(i));
+    const variation = 1 + Math.sin(angle * 5 + index % 2) * 0.025;
+    position.setX(i, position.getX(i) * variation);
+    position.setZ(i, position.getZ(i) * variation);
+  }
+  trunkGeometry.computeVertexNormals();
+  mesh(trunkGeometry, bark, [0, 0.48, 0], null, group);
+  for (let i = 0; i < 14; i++) {
+    const angle = i * Math.PI * 2 / 14;
+    const start = new THREE.Vector3(Math.cos(angle) * 0.94, 0.06, Math.sin(angle) * 0.94);
+    const end = new THREE.Vector3(Math.cos(angle) * 0.82, 0.92, Math.sin(angle) * 0.82);
+    const direction = end.clone().sub(start);
+    const ridge = mesh(new THREE.CylinderGeometry(0.018, 0.03, direction.length(), 4),
+      darkBark, start.clone().add(end).multiplyScalar(0.5).toArray(), null, group);
+    ridge.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+  }
+  for (let i = 0; i < 5; i++) {
+    const angle = i * Math.PI * 2 / 5 + 0.2;
+    const root = mesh(new THREE.ConeGeometry(0.18, 0.58, 5), bark,
+      [Math.cos(angle) * 0.70, 0.15, Math.sin(angle) * 0.70], null, group);
+    root.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0),
+      new THREE.Vector3(Math.cos(angle), 0.5, Math.sin(angle)).normalize());
+  }
+  const top = mesh(new THREE.CylinderGeometry(0.78, 0.78, 0.035, 28), cutWood,
+    [0, 0.969, 0], null, group);
+  top.name = 'cut-wood';
+  for (let i = 1; i <= 5; i++) {
+    const ring = mesh(new THREE.TorusGeometry(i * 0.123, 0.009, 4, 36), grain,
+      [0.018, 0.99, -0.018], null, group);
+    ring.rotation.x = -Math.PI / 2;
+    ring.scale.x = 0.95;
+    ring.name = 'growth-ring';
+  }
+  // Short radial checks make the cut face read as wood even at board scale.
+  for (const [angle, length] of [[0.5, 0.28], [2.6, 0.21], [4.5, 0.18]]) {
+    const crack = mesh(new THREE.BoxGeometry(length, 0.008, 0.013), grain,
+      [Math.cos(angle) * (0.76 - length / 2), 0.991,
+        Math.sin(angle) * (0.76 - length / 2)], null, group);
+    crack.rotation.y = -angle;
+  }
   return group;
 }
