@@ -6,6 +6,10 @@ import { roundLighting, WindLeaves } from './atmosphere.js';
 import { makeLandscape, makeRock, makeStump, cullOuterForest } from './landscape.js';
 import { roundTransition, returnPath, pointOnPath } from './round-transition.js';
 
+// The end-tree canopy is centered at y=11.6. Keep both climb endpoints
+// inside its leaves so the entire squirrel is naturally occluded.
+const TREE_CLIMB_HEIGHT = 10.2;
+
 const colors = {
   red: 0xb6653e,
   grey: 0x8e9f98,
@@ -594,7 +598,7 @@ export class ForestScene {
         climb = THREE.MathUtils.smoothstep(rise, 0, 0.15);
         climbPitch = -climb * Math.PI / 2;
         squirrel.root.position.set(point.x - RULES.width / 2,
-          0.055 + rise * 6.2 + climb * 1.2, point.z - RULES.depth / 2);
+          0.055 + rise * TREE_CLIMB_HEIGHT + climb * 1.2, point.z - RULES.depth / 2 - THREE.MathUtils.smoothstep(rise, 0.72, 1) * 1.8);
         const turn = THREE.MathUtils.smoothstep(run, 0.88, 1);
         const angle = Math.atan2(Math.sin(Math.PI - point.facing), Math.cos(Math.PI - point.facing));
         squirrel.rotation = point.facing + angle * turn;
@@ -614,7 +618,7 @@ export class ForestScene {
         climbPitch = climb * Math.PI / 2;
         const start = playerStart(player.id);
         squirrel.root.position.set(THREE.MathUtils.lerp(treeX, start.x - RULES.width / 2, run),
-          0.055 + (1 - descend) * 6.2 + climb * 1.2, 1.15 * (1 - run));
+          0.055 + (1 - descend) * TREE_CLIMB_HEIGHT + climb * 1.2, 1.15 * (1 - run) - THREE.MathUtils.smoothstep(1 - descend, 0.72, 1) * 1.8);
         scripted = true;
         scriptedMoving = transition?.stage !== 'fade-in';
         squirrel.rotation = (side < 0 ? Math.PI / 2 : -Math.PI / 2) * turn;

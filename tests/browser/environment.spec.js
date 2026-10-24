@@ -89,5 +89,27 @@ test('forest obstacles, wind, sunlight, and squirrels follow the full round tran
   expect(transition.round).toBe(2);
   expect(transition.intensity).toBe(3.2);
   expect(transition.leavesHidden).toBe(true);
+  const canopy = await page.evaluate(() => {
+    const {game, forest} = window.fixture;
+    forest.reducedMotion = false;
+    const hiddenByLeaves = () => {
+      forest.render(0, 0);
+      const visible = forest.canvas.toDataURL();
+      forest.squirrels.forEach(s => { s.root.visible = false; });
+      forest.render(0, 0);
+      const hidden = forest.canvas.toDataURL();
+      forest.squirrels.forEach(s => { s.root.visible = true; });
+      return visible === hidden;
+    };
+    game.phase = 'countdown'; game.countdown = 3;
+    const entrance = hiddenByLeaves();
+    game.countdown = 2;
+    forest.render(0, 0);
+    const emerged = forest.squirrels.every(s => s.root.position.y < 7);
+    game.phase = 'intermission'; game.intermissionRemaining = 9;
+    const exit = hiddenByLeaves();
+    return {entrance, emerged, exit};
+  });
+  expect(canopy).toEqual({entrance:true, emerged:true, exit:true});
   expect(errors).toEqual([]);
 });
