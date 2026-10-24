@@ -63,8 +63,9 @@ function makeOuterForest(landscape, { cone, trunk, bark }) {
     });
   });
   for (const part of [trunks, ...crowns]) {
-    part.castShadow = true;
-    part.receiveShadow = true;
+    // Distant foliage follows daylight without extra shadow-map passes.
+    part.castShadow = false;
+    part.receiveShadow = false;
     part.instanceMatrix.needsUpdate = true;
     if (part.instanceColor) part.instanceColor.needsUpdate = true;
     part.computeBoundingBox();
@@ -102,7 +103,7 @@ function makeOuterForest(landscape, { cone, trunk, bark }) {
     }
   });
   // The distant understory receives the moving sun without adding shadow draws.
-  bushMesh.receiveShadow = true;
+  bushMesh.receiveShadow = false;
   bushMesh.instanceMatrix.needsUpdate = true;
   bushMesh.instanceColor.needsUpdate = true;
   bushMesh.computeBoundingBox();
