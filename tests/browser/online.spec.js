@@ -3,15 +3,15 @@ import { test, expect } from '@playwright/test';
 test('two separate browsers host, join, synchronize movement, reconnect, and keep burials private', async ({
   browser,
 }) => {
-  test.setTimeout(90000);
+  test.setTimeout(180000);
   const hostContext = await browser.newContext({
     baseURL: 'http://127.0.0.1:5173',
-    deviceScaleFactor: 0.5,
+    deviceScaleFactor: 0.25,
     viewport: { width: 1100, height: 850 },
   });
   const guestContext = await browser.newContext({
     baseURL: 'http://127.0.0.1:5173',
-    deviceScaleFactor: 0.5,
+    deviceScaleFactor: 0.25,
     viewport: { width: 1100, height: 850 },
   });
   const host = await hostContext.newPage(),

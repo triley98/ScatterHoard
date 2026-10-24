@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-test.use({ deviceScaleFactor: 0.5 });
+// Keep the long timer simulation affordable on software WebGL; visual QA uses full resolution.
+test.use({ deviceScaleFactor: 0.25 });
 
 async function advance(page, milliseconds) {
   // Each RAF sees <= 200ms, keeping the app's normal long-frame guard in effect.
@@ -12,7 +13,7 @@ async function advance(page, milliseconds) {
 test('a real browser can render, collect, bury, pause, finish, and rematch', async ({
   page,
 }) => {
-  test.setTimeout(300000);
+  test.setTimeout(600000);
   await page.setViewportSize({ width: 1000, height: 850 });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
