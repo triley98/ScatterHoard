@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RULES } from './game.js';
+import { makeTurfTexture } from './turf.js';
 import { poseSquirrel } from './squirrel-motion.js';
 import { roundLighting, WindLeaves } from './atmosphere.js';
 import { makeLandscape, makeRock, makeStump } from './landscape.js';
@@ -313,9 +314,11 @@ export class ForestScene {
       null,
       this.scene,
     );
+    const turfMap = makeTurfTexture();
+    turfMap.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
     const turf = mesh(
       new THREE.PlaneGeometry(RULES.width, RULES.depth),
-      material(0x718451),
+      material(0xffffff, { map: turfMap }),
       [0, 0.03, 0],
       null,
       this.scene,
@@ -390,9 +393,9 @@ export class ForestScene {
     const leafMaterials = [0xb99854, 0xa76c40, 0x998d4e].map((c) => material(c));
     const bladeGeometry = new THREE.ConeGeometry(1, 1, 3);
     for (let i = 0; i < 3; i++) {
-      const leaves = new THREE.InstancedMesh(leafGeometry, leafMaterials[i], 90);
+      const leaves = new THREE.InstancedMesh(leafGeometry, leafMaterials[i], 120);
       const transform = new THREE.Object3D();
-      for (let j = 0; j < 90; j++) {
+      for (let j = 0; j < 120; j++) {
         transform.position.set((random() - 0.5) * 39, 0.07, (random() - 0.5) * (RULES.depth - 0.7));
         transform.scale.set(0.09 + random() * 0.09, 0.018, 0.18 + random() * 0.12);
         transform.rotation.y = random() * Math.PI * 2;
@@ -401,14 +404,14 @@ export class ForestScene {
       leaves.receiveShadow = true;
       this.scene.add(leaves);
     }
-    const blades = new THREE.InstancedMesh(bladeGeometry, material(0x637c43), 360);
+    const blades = new THREE.InstancedMesh(bladeGeometry, material(0x637c43), 600);
     const transform = new THREE.Object3D();
-    for (let clump = 0; clump < 90; clump++) {
+    for (let clump = 0; clump < 150; clump++) {
       const x = (random() - 0.5) * 39, z = (random() - 0.5) * (RULES.depth - 0.7);
       for (let blade = 0; blade < 4; blade++) {
         const height = 0.12 + random() * 0.14;
         transform.position.set(x + (random() - 0.5) * 0.25, height / 2 + 0.04, z + (random() - 0.5) * 0.25);
-        transform.scale.set(0.035, height, 0.035);
+        transform.scale.set(0.045, height, 0.045);
         transform.rotation.set((random() - 0.5) * 0.6, random() * 6, (random() - 0.5) * 0.6);
         transform.updateMatrix(); blades.setMatrixAt(clump * 4 + blade, transform.matrix);
       }

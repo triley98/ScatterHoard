@@ -21,6 +21,95 @@ function mesh(geometry, mat, position, scale, parent) {
   return object;
 }
 
+function makeOuterForest(landscape, { cone, trunk, bark }) {
+  // A separate seed preserves every existing tree, bush, and mushroom placement.
+  const random = seededRandom(78134);
+  const protectedBorder = (x, z) => Math.abs(x) < 29 && z > -18 && z < 17;
+  const trees = [];
+  for (let z = -56; z <= 56; z += 3.4) {
+    for (let x = -56; x <= 56; x += 3.4) {
+      const px = x + (random() - 0.5) * 1.5;
+      const pz = z + (random() - 0.5) * 1.5;
+      if (protectedBorder(px, pz)) continue;
+      trees.push({ x: px, z: pz, height: 2 + random() * 4, rotation: random() * Math.PI * 2 });
+    }
+  }
+  const treeGroup = new THREE.Group();
+  treeGroup.name = 'background-tree';
+  treeGroup.userData.outerForest = true;
+  landscape.add(treeGroup);
+  const trunks = new THREE.InstancedMesh(trunk, bark, trees.length);
+  trunks.name = 'outer-tree-trunks';
+  const canopyMaterial = material(0xffffff);
+  const crowns = Array.from({ length: 3 }, () =>
+    new THREE.InstancedMesh(cone, canopyMaterial, trees.length));
+  const transform = new THREE.Object3D();
+  const treeColors = [0x304f38, 0x365b3c, 0x426640, 0x4d6d43].map(c => new THREE.Color(c));
+  trees.forEach(({ x, z, height, rotation }, i) => {
+    const radius = 0.13 * Math.max(1, height / 4);
+    transform.position.set(x, -0.8 + height * 0.28, z);
+    transform.rotation.set(0, rotation, 0);
+    transform.scale.set(radius, height * 0.56, radius);
+    transform.updateMatrix();
+    trunks.setMatrixAt(i, transform.matrix);
+    crowns.forEach((crown, layer) => {
+      const size = height * (0.36 - layer * 0.072);
+      transform.position.set(x, -0.8 + height * (0.47 + layer * 0.19), z);
+      transform.rotation.y = rotation + layer * 0.6;
+      transform.scale.set(size, height * 0.5, size);
+      transform.updateMatrix();
+      crown.setMatrixAt(i, transform.matrix);
+      crown.setColorAt(i, treeColors[Math.floor(random() * treeColors.length)]);
+    });
+  });
+  for (const part of [trunks, ...crowns]) {
+    part.castShadow = true;
+    part.receiveShadow = true;
+    part.instanceMatrix.needsUpdate = true;
+    if (part.instanceColor) part.instanceColor.needsUpdate = true;
+    part.computeBoundingBox();
+    part.computeBoundingSphere();
+    treeGroup.add(part);
+  }
+
+  const bushes = [];
+  for (let z = -55; z <= 55; z += 4.3) {
+    for (let x = -55; x <= 55; x += 4.3) {
+      const px = x + (random() - 0.5) * 2;
+      const pz = z + (random() - 0.5) * 2;
+      if (protectedBorder(px, pz)) continue;
+      bushes.push({ x: px, z: pz, size: 0.65 + random() * 0.9 });
+    }
+  }
+  const bushGroup = new THREE.Group();
+  bushGroup.name = 'bush';
+  bushGroup.userData.outerForest = true;
+  landscape.add(bushGroup);
+  const distantFoliage = new THREE.IcosahedronGeometry(1, 0);
+  const bushMesh = new THREE.InstancedMesh(distantFoliage, material(0xffffff), bushes.length * 3);
+  bushMesh.name = 'outer-bush-foliage';
+  const bushColors = [0x4a6a40, 0x587547, 0x6a844e].map(c => new THREE.Color(c));
+  bushes.forEach(({ x, z, size }, i) => {
+    for (let lobe = 0; lobe < 3; lobe++) {
+      const scale = size * (lobe === 0 ? 1 : 0.72);
+      transform.position.set(x + (lobe - 1) * size * 0.5,
+        -0.8 + size * (lobe === 0 ? 0.5 : 0.36), z + (lobe % 2) * size * 0.2);
+      transform.rotation.set(0, random() * Math.PI * 2, 0);
+      transform.scale.set(scale, scale * 0.72, scale * 0.82);
+      transform.updateMatrix();
+      bushMesh.setMatrixAt(i * 3 + lobe, transform.matrix);
+      bushMesh.setColorAt(i * 3 + lobe, bushColors[Math.floor(random() * bushColors.length)]);
+    }
+  });
+  // The distant understory receives the moving sun without adding shadow draws.
+  bushMesh.receiveShadow = true;
+  bushMesh.instanceMatrix.needsUpdate = true;
+  bushMesh.instanceColor.needsUpdate = true;
+  bushMesh.computeBoundingBox();
+  bushMesh.computeBoundingSphere();
+  bushGroup.add(bushMesh);
+}
+
 /** A quiet forest border: only trees, mushroom clusters, and leafy bushes. */
 export function makeLandscape(scene) {
   const random = seededRandom(23);
@@ -47,7 +136,7 @@ export function makeLandscape(scene) {
       trees.push([side * (25.8 + random() * 2), -8 + i * 3.2, 2.4 + random() * 1.5]);
   // The five tall trees sit just beyond the back edge, behind the playable clearing.
   for (const [i, x] of [-17, -8.5, 0, 8.5, 17].entries())
-    trees.push([x, -RULES.depth / 2 - 1.8 - (i % 2) * 0.35, 8.2 + (i % 3) * 0.45, 'large-rear']);
+    trees.push([x, -RULES.depth / 2 - 1.8 - (i % 2) * 0.35, 12 + (i % 3) * 0.6, 'large-rear']);
   // Low foreground trees are far enough from the front edge to leave the board in view.
   for (const [i, x] of [-24, -20, -16, -12, -8, -4, 0, 4, 8, 12, 16, 20, 24].entries())
     trees.push([x + (random() - 0.5) * 1.1, RULES.depth / 2 + 4.2 + (i % 3) * 1.1,
@@ -59,11 +148,13 @@ export function makeLandscape(scene) {
     tree.userData.smallFrontTree = kind === 'small-front';
     tree.position.set(x, -0.8, z);
     const trunkRadius = 0.13 * Math.max(1, h / 4);
-    mesh(trunk, bark, [0, h * 0.28, 0], [trunkRadius, h * 0.56, trunkRadius], tree);
+    const tallRear = kind === 'large-rear';
+    const trunkHeight = h * (tallRear ? 0.78 : 0.56);
+    mesh(trunk, bark, [0, trunkHeight / 2, 0], [trunkRadius, trunkHeight, trunkRadius], tree);
     for (let layer = 0; layer < 3; layer++) {
-      const size = h * (0.36 - layer * 0.072);
+      const size = h * (tallRear ? 0.26 - layer * 0.052 : 0.36 - layer * 0.072);
       const crown = mesh(cone, treeLeaves[(layer + Math.floor(random() * 2)) % 4],
-        [0, h * (0.47 + layer * 0.19), 0], [size, h * 0.5, size], tree);
+        [0, h * ((tallRear ? 0.62 : 0.47) + layer * 0.19), 0], [size, h * 0.5, size], tree);
       crown.rotation.y = layer * 0.6;
     }
     landscape.add(tree);
@@ -120,6 +211,7 @@ export function makeLandscape(scene) {
     }
     landscape.add(cluster);
   }
+  makeOuterForest(landscape, { cone, trunk, bark });
   return landscape;
 }
 

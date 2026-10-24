@@ -38,25 +38,76 @@ export function overlapsRock(x, z, rock, radius = RULES.playerRadius) {
 }
 
 function makeObstacles(random) {
-  // Separate slots keep a broad central runway, space around each obstacle,
-  // and an open route along all four edges, even for repeated RNG values.
-  const rocks = [], stumps = [];
-  for (let band = 0; band < 2; band++) {
-    rocks.push({
-      x: 2 + Math.floor(random() * 5),
-      z: (band === 0 ? 1 : 10) + Math.floor(random() * 2),
-      width: 3, depth: 3,
-    });
-    stumps.push({
-      x: 12 + Math.floor(random() * 5),
-      z: (band === 0 ? 1 : 10) + Math.floor(random() * 3),
-      width: 2, depth: 2,
+  // Seed an independent layout shuffle so placement work never consumes an
+  // unbounded number of the authority's drop/powerup random values.
+  let seed = 0;
+  for (let i = 0; i < 8; i++) {
+    seed = Math.imul(seed ^ Math.floor(random() * 4294967296), 73244475) >>> 0;
+    seed = (seed ^ (seed >>> 16)) >>> 0;
+  }
+  const roll = () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  const shuffle = (items) => {
+    for (let i = items.length - 1; i > 0; i--) {
+      const j = Math.floor(roll() * (i + 1));
+      [items[i], items[j]] = [items[j], items[i]];
+    }
+    return items;
+  };
+  const gap = (a, b) => Math.hypot(
+    Math.max(a.x - b.x - b.width, b.x - a.x - a.width, 0),
+    Math.max(a.z - b.z - b.depth, b.z - a.z - a.depth, 0),
+  );
+  const kinds = shuffle(['rock', 'rock', 'stump', 'stump']);
+  const candidates = kinds.map(kind => {
+    const size = kind === 'rock' ? 3 : 2;
+    const items = [];
+    for (let z = 1; z <= RULES.depth - size - 1; z++) {
+      // Both types share all legal locations. Only the tree entrance lane and
+      // outside walking routes are reserved; no type has an inner/outer slot.
+      if (z + size > 6 && z < 9) continue;
+      for (let x = 1; x <= RULES.half - size - 1; x++)
+        items.push({ kind, x, z, width: size, depth: size });
+    }
+    return shuffle(items);
+  });
+  const chosen = [];
+  let attempts = 0;
+  function place(index) {
+    if (index === candidates.length) return true;
+    for (const candidate of candidates[index]) {
+      if (++attempts > 10000) return false;
+      if (chosen.some(other => gap(candidate, other) < 2)) continue;
+      chosen.push(candidate);
+      if (place(index + 1)) return true;
+      chosen.pop();
+    }
+    return false;
+  }
+  if (!place(0)) {
+    // A bounded, guaranteed layout for pathological RNG orderings. Shuffling
+    // the corner assignment keeps either type eligible for every corner.
+    chosen.length = 0;
+    const corners = shuffle([[false, false], [true, false], [false, true], [true, true]]);
+    kinds.forEach((kind, i) => {
+      const size = kind === 'rock' ? 3 : 2;
+      const [inner, lower] = corners[i];
+      chosen.push({ kind, x: inner ? RULES.half - size - 1 : 1,
+        z: lower ? RULES.depth - size - 1 : 1, width: size, depth: size });
     });
   }
-  const mirror = (items) => [...items, ...items.map((obstacle) => ({
-    ...obstacle, x: RULES.width - obstacle.x - obstacle.width,
-  }))];
-  return { rocks: mirror(rocks), stumps: mirror(stumps) };
+  const mirrored = kind => {
+    const left = chosen.filter(item => item.kind === kind)
+      .map(({ kind: omitted, ...obstacle }) => obstacle);
+    return [...left, ...left.map(obstacle => ({
+      ...obstacle, x: RULES.width - obstacle.x - obstacle.width,
+    }))];
+  };
+  // Left footprints end at x19 or earlier, so reflected footprints also keep
+  // at least two cells of clearance across the center line.
+  return { rocks: mirrored('rock'), stumps: mirrored('stump') };
 }
 
 function newPlayer(id) {

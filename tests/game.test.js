@@ -9,6 +9,9 @@ const idle = [
 const makeGame = () => {
   const game = new Game({ random: () => 0.5 });
   game.start();
+  // Rule fixtures use explicit coordinates independently of randomized scenery.
+  game.rocks = [];
+  game.stumps = [];
   return game;
 };
 function giveAcorn(game, id, x = 8.5, z = 5.5) {
@@ -469,12 +472,24 @@ test('only the final board decides the match and each round keeps its own score 
   );
 });
 
-test('3×3 rocks and 2×2 stumps are random, mirrored, separated, and clear of starts and the runway', () => {
-  const a = new Game({ random: () => 0.1 });
-  const b = new Game({ random: () => 0.8 });
-  assert.notDeepEqual(a.rocks, b.rocks);
-  assert.notDeepEqual(a.stumps, b.stumps);
-  for (const game of [a, b, new Game({ random: () => 0 }), new Game({ random: () => 0.9999 })]) {
+function seededRandom(seed) {
+  return () => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+}
+
+function obstacleGap(left, right) {
+  const gapX = Math.max(left.x - right.x - right.width, right.x - left.x - left.width, 0);
+  const gapZ = Math.max(left.z - right.z - right.depth, right.z - left.z - left.depth, 0);
+  return Math.hypot(gapX, gapZ);
+}
+
+test('random layouts preserve mirrored sizes, two-cell clearances, starts, runway and edge routes', () => {
+  const inputs = [() => 0, () => 0.1, () => 0.25, () => 0.5, () => 0.9999,
+    ...Array.from({ length: 150 }, (_, i) => seededRandom(i + 1))];
+  for (const random of inputs) {
+    const game = new Game({ random });
     for (const [items, size] of [[game.rocks, 3], [game.stumps, 2]]) {
       assert.equal(items.length, 4);
       for (let i = 0; i < 2; i++) {
@@ -487,18 +502,54 @@ test('3×3 rocks and 2×2 stumps are random, mirrored, separated, and clear of s
     for (const obstacle of game.obstacles) {
       assert.ok(obstacle.x >= 1 && obstacle.x + obstacle.width <= RULES.width - 1);
       assert.ok(obstacle.z >= 1 && obstacle.z + obstacle.depth <= RULES.depth - 1);
-      assert.ok(obstacle.z + obstacle.depth <= 5 || obstacle.z >= 10);
     }
     const obstacles = game.obstacles;
     for (let i = 0; i < obstacles.length; i++)
-      for (let j = i + 1; j < obstacles.length; j++) {
-        const left = obstacles[i], right = obstacles[j];
-        const gapX = Math.max(left.x - right.x - right.width, right.x - left.x - left.width, 0);
-        const gapZ = Math.max(left.z - right.z - right.depth, right.z - left.z - left.depth, 0);
-        assert.ok(Math.hypot(gapX, gapZ) >= 1);
-      }
+      for (let j = i + 1; j < obstacles.length; j++)
+        assert.ok(obstacleGap(obstacles[i], obstacles[j]) >= 2);
     for (let x = 0.5; x < RULES.width; x++)
       assert.ok(obstacles.every(obstacle => !overlapsRock(x, 7.5, obstacle)));
+  }
+});
+
+test('rocks and stumps can each be inner or outer, with varied horizontal and vertical positions', () => {
+  const nearest = new Set(), farthest = new Set(), layouts = new Set();
+  const positions = { rock: { x: new Set(), z: new Set() }, stump: { x: new Set(), z: new Set() } };
+  for (let seed = 1; seed <= 200; seed++) {
+    const game = new Game({ random: seededRandom(seed) });
+    layouts.add(JSON.stringify([game.rocks, game.stumps]));
+    const left = [
+      ...game.rocks.slice(0, 2).map(item => ({ ...item, kind: 'rock' })),
+      ...game.stumps.slice(0, 2).map(item => ({ ...item, kind: 'stump' })),
+    ];
+    left.sort((a, b) => a.x + a.width / 2 - b.x - b.width / 2);
+    farthest.add(left[0].kind); nearest.add(left.at(-1).kind);
+    for (const item of left) {
+      positions[item.kind].x.add(item.x);
+      positions[item.kind].z.add(item.z);
+    }
+  }
+  assert.equal(layouts.size, 200);
+  assert.deepEqual([...nearest].sort(), ['rock', 'stump']);
+  assert.deepEqual([...farthest].sort(), ['rock', 'stump']);
+  for (const values of Object.values(positions)) {
+    assert.ok(values.x.size >= 12);
+    assert.ok(values.z.size >= 6);
+  }
+});
+
+test('layout generation remains bounded when the RNG repeats and preserves layouts across rounds', () => {
+  for (const value of [0, 0.25, 0.5, 0.9999]) {
+    let calls = 0;
+    const game = new Game({ random: () => { calls++; return value; } });
+    assert.equal(calls, 8);
+    assert.equal(game.obstacles.length, 8);
+    const snapshot = game.snapshot();
+    game.start(true);
+    game.update(RULES.duration + RULES.intermission, idle);
+    assert.equal(game.round, 2);
+    assert.deepEqual(game.snapshot().rocks, snapshot.rocks);
+    assert.deepEqual(game.snapshot().stumps, snapshot.stumps);
   }
 });
 
@@ -544,7 +595,7 @@ test('normal and bonus drops avoid rocks and stumps even when the RNG repeats an
 });
 
 test('starting a prepared countdown preserves the layout that both players saw', () => {
-  const game = makeGame();
+  const game = new Game({ random: seededRandom(91) });
   const rocks = JSON.stringify(game.rocks);
   const stumps = JSON.stringify(game.stumps);
   game.phase = 'countdown'; game.start(true);
