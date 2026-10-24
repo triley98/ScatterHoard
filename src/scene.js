@@ -562,7 +562,7 @@ export class ForestScene {
         climb = 1 - turn;
         climbPitch = climb * Math.PI / 2;
         squirrel.root.position.set(THREE.MathUtils.lerp(treeX, player.x - RULES.width / 2, run),
-          0.055 + (1 - descend) * 7.4, 1.15 * (1 - run));
+          0.055 + (1 - descend) * 6.2 + climb * 1.2, 1.15 * (1 - run));
         entering = true;
         squirrel.rotation = (side < 0 ? Math.PI / 2 : -Math.PI / 2) * turn;
       }
@@ -574,6 +574,7 @@ export class ForestScene {
       const moving = entering || (active && Math.hypot(player.vx, player.vz) > 0.3);
       poseSquirrel(squirrel, {
         dt, animate, moving, climb, climbPitch,
+        frozen: ['paused', 'paused-countdown'].includes(game.phase),
         carrying: player.carrying, digging: Boolean(player.dig),
         speed: Math.hypot(player.vx, player.vz),
       });
