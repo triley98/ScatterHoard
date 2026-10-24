@@ -2,7 +2,7 @@ import './style.css';
 import { Game, RULES } from './game.js';
 import { ForestScene } from './scene.js';
 import { WoodlandAudio } from './audio.js';
-import { OnlineSession, lobbyBase } from './online.js';
+import { OnlineSession, lobbyBase, defaultLobby } from './online.js';
 import { PlayerBadges, badgeIcon } from './badges.js';
 
 const $ = (id) => document.getElementById(id);
@@ -39,9 +39,8 @@ for (const icon of document.querySelectorAll('[data-legend-icon]'))
 const sessionQuery = new URLSearchParams(location.search);
 $('lobby-server').value =
   sessionQuery.get('lobby') ||
-  import.meta.env.VITE_LOBBY_URL ||
-  localStorage.getItem('scatterhoard-lobby') ||
-  location.origin;
+  defaultLobby(location.origin, import.meta.env.VITE_LOBBY_URL,
+    localStorage.getItem('scatterhoard-lobby'));
 let forest;
 let countdown = 0;
 let lastCountdownNumber = 0;

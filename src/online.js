@@ -1,3 +1,15 @@
+export const PUBLIC_LOBBY_URL = 'https://scatterhoard.scatterhoard.workers.dev';
+
+export function defaultLobby(origin, configured, saved) {
+  // Old builds saved the static Pages origin as if it were a lobby.
+  let usableSaved = false;
+  try {
+    usableSaved = saved && !new URL(saved).hostname.endsWith('.github.io');
+  } catch { /* Ignore an invalid address saved by an earlier build. */ }
+  return configured || (usableSaved && saved) ||
+    (new URL(origin).hostname.endsWith('.github.io') ? PUBLIC_LOBBY_URL : origin);
+}
+
 export function lobbyBase(value = '') {
   const url = new URL(value || window.location.origin);
   if (
@@ -10,6 +22,8 @@ export function lobbyBase(value = '') {
     throw new Error('Use the HTTPS address of your Cloudflare lobby.');
   if (url.username || url.password)
     throw new Error('The lobby address cannot contain credentials.');
+  if (url.hostname.endsWith('.github.io'))
+    throw new Error('GitHub Pages cannot run the online lobby. Use https://scatterhoard.scatterhoard.workers.dev.');
   return url.origin;
 }
 

@@ -6,14 +6,14 @@ Play together on one keyboard, or host an online room on Cloudflare and share it
 
 ## Play
 
-The static website is published through GitHub Pages at **https://triley98.github.io/ScatterHoard/**. Online play additionally needs the Cloudflare deployment below. The Cloudflare Worker serves the entire website and lobby at a single public HTTPS URL, so that address supports both modes automatically.
+The static website is published through GitHub Pages at **https://triley98.github.io/ScatterHoard/**. The online lobby is deployed at **https://scatterhoard.scatterhoard.workers.dev**. GitHub Pages connects to it automatically. The Cloudflare Worker serves the entire website and lobby at a single public HTTPS URL, so that address supports both modes automatically.
 
 - **Same keyboard:** click **Let’s forage**. Red moves with WASD and digs with Space; Ash moves with arrow keys and digs with Enter.
 - **Online:** click **Online with a friend → Host a clearing**, then copy the invite link. Your friend opens it and chooses **Join clearing**. Host is Red, guest is Ash. Both choose **Ready to forage** to start. Online, either movement key set and either dig key control only your assigned squirrel.
 - Touch devices get directional and Dig buttons.
 - A WebGL-capable browser is required. Sound is optional and starts muted.
 
-If using the GitHub Pages frontend with a separate Cloudflare lobby, expand **Lobby server** and enter the Worker's public HTTPS address. Invite links carry this public address automatically. For a default shared endpoint, set the GitHub repository variable `SCATTERHOARD_LOBBY_URL` to the deployed Worker URL; the Pages workflow builds it as `VITE_LOBBY_URL`. That URL is public configuration, never a secret.
+To use a different Cloudflare lobby, expand **Lobby server** and enter the Worker's public HTTPS address. Invite links carry this public address automatically. For a default shared endpoint, set the GitHub repository variable `SCATTERHOARD_LOBBY_URL` to the deployed Worker URL; the Pages workflow builds it as `VITE_LOBBY_URL`. That URL is public configuration, never a secret.
 
 ## Rules
 
