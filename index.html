@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5f3eb" />
+    <meta
+      name="description"
+      content="Two squirrels. One minute. A friendly local multiplayer scramble to collect and bury acorns."
+    />
+    <title>ScatterHoard — A little woodland rivalry</title>
+    <link rel="icon" type="image/svg+xml" href="/acorn.svg" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="site-header">
+        <a class="brand" href="./" aria-label="ScatterHoard home"
+          ><span class="brand-mark" aria-hidden="true"></span>scatter<span
+            class="brand-light"
+            >hoard</span
+          ></a
+        >
+        <div class="header-right">
+          <span class="local-badge"><span></span> A LITTLE LOCAL RIVALRY</span
+          ><button class="text-button" id="help-button">
+            <span class="help-icon">?</span> How to play</button
+          ><button
+            class="icon-button"
+            id="sound-button"
+            aria-label="Turn sound on"
+            aria-pressed="false"
+            title="Turn sound on"
+          ></button>
+        </div>
+      </header>
+
+      <main>
+        <section class="intro" aria-labelledby="page-title">
+          <div>
+            <div class="eyebrow">
+              <span class="tiny-star">✳</span> THE WOODS ARE BIG ENOUGH FOR
+              TWO. PROBABLY.
+            </div>
+            <h1 id="page-title">Small paws. <em>Big plans.</em></h1>
+            <p>Collect a little. Bury a lot. Settle it in the clearing.</p>
+          </div>
+          <div class="round-facts">
+            <span><b>02</b> SQUIRRELS</span><i></i><span><b>60</b> SECONDS</span
+            ><i></i><span><b>01</b> WINNER</span>
+          </div>
+        </section>
+
+        <section class="game-shell" aria-label="ScatterHoard game">
+          <div class="scoreboard">
+            <div class="player-score red-score">
+              <div class="player-avatar red-avatar" aria-hidden="true"></div>
+              <div class="score-name">
+                <span>PLAYER 01</span>
+                <h2>Red <span class="player-nickname">The go-getter</span></h2>
+                <div class="carry-status" id="red-carry">Paws empty</div>
+              </div>
+              <div class="score-count">
+                <strong id="red-score">0</strong><span>BURIED</span>
+              </div>
+            </div>
+            <div class="clock-block">
+              <span class="round-label" id="round-label"
+                >YOUR NEXT WOODLAND RIVALRY</span
+              >
+              <div
+                class="clock"
+                id="clock"
+                role="timer"
+                aria-label="Time remaining"
+              >
+                01:00
+              </div>
+              <div class="clock-caption">
+                <span id="clock-status-dot"></span
+                ><span id="clock-caption">A one-minute scramble</span>
+              </div>
+            </div>
+            <div class="player-score grey-score">
+              <div class="player-avatar grey-avatar" aria-hidden="true"></div>
+              <div class="score-name">
+                <span>PLAYER 02</span>
+                <h2>
+                  Ash <span class="player-nickname">The quiet schemer</span>
+                </h2>
+                <div class="carry-status" id="grey-carry">Paws empty</div>
+              </div>
+              <div class="score-count">
+                <strong id="grey-score">0</strong><span>BURIED</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="arena" id="arena">
+            <canvas
+              id="game-canvas"
+              tabindex="0"
+              aria-label="Game board: 40 columns by 10 rows. Red squirrel starts on the left, grey squirrel on the right. Use WASD and Space for Red, arrow keys and Enter for Ash."
+            ></canvas>
+            <div class="arena-topline">
+              <span class="arena-label"
+                ><span class="live-dot"></span> THE CLEARING
+                <span class="arena-label-light">/ 40 × 10</span></span
+              ><span class="drop-label" id="drop-label"
+                ><span class="acorn-mini" aria-hidden="true"></span> AN ACORN
+                EVERY 5 SECONDS</span
+              >
+            </div>
+            <div class="territory-label territory-red">
+              <span></span> RED’S PATCH
+            </div>
+            <div class="territory-label territory-grey">
+              ASH’S PATCH <span></span>
+            </div>
+            <div
+              class="arena-message"
+              id="arena-message"
+              aria-live="polite"
+            ></div>
+            <div class="countdown-overlay" id="countdown-overlay" hidden>
+              <span>PAWS AT THE READY</span
+              ><strong id="countdown-number">3</strong>
+            </div>
+            <div class="renderer-error" id="renderer-error" hidden>
+              <h3>The clearing couldn’t load</h3>
+              <p>
+                This game needs WebGL. Try a browser with hardware acceleration
+                enabled.
+              </p>
+            </div>
+            <div class="arena-bottomline">
+              <span
+                ><span class="view-icon" aria-hidden="true">◇</span> 45°
+                VIEW</span
+              ><span>NO FENCES. JUST FRIENDLY COMPETITION.</span
+              ><span>20 × 10 PER PATCH</span>
+            </div>
+          </div>
+
+          <div class="game-toolbar">
+            <div class="toolbar-message">
+              <span class="toolbar-spark" aria-hidden="true">✳</span>
+              <div>
+                <strong id="toolbar-title"
+                  >A little hustle. A lot of hoarding.</strong
+                ><span id="toolbar-subtitle"
+                  >Bring a friend. The forest will keep score.</span
+                >
+              </div>
+            </div>
+            <div class="toolbar-actions">
+              <button class="text-button" id="restart-button" hidden>
+                Restart</button
+              ><button class="primary-button" id="start-button">
+                Let’s forage
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M5 15 15 5M5 5h10v10" />
+                </svg></button
+              ><button class="primary-button" id="pause-button" hidden>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M7 5v10m6-10v10" />
+                </svg>
+                Pause
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="below-game" aria-label="Controls and game rules">
+          <div class="control-card red-controls">
+            <div class="control-player">
+              <span class="player-dot red-dot"></span
+              ><strong>You’re Red.</strong><span>Left patch. Big energy.</span>
+            </div>
+            <div class="control-inputs">
+              <div class="key-cluster" aria-label="W A S D to move">
+                <div><kbd>W</kbd></div>
+                <div><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div>
+              </div>
+              <span class="control-verb">MOVE</span
+              ><span class="control-divider"></span
+              ><kbd class="wide-key">space</kbd
+              ><span class="control-verb">BURY</span>
+            </div>
+          </div>
+          <div class="control-card grey-controls">
+            <div class="control-player">
+              <span class="player-dot grey-dot"></span
+              ><strong>You’re Ash.</strong
+              ><span>Right patch. Quiet ambition.</span>
+            </div>
+            <div class="control-inputs">
+              <div class="key-cluster" aria-label="Arrow keys to move">
+                <div><kbd>↑</kbd></div>
+                <div><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div>
+              </div>
+              <span class="control-verb">MOVE</span
+              ><span class="control-divider"></span
+              ><kbd class="wide-key">enter ↵</kbd
+              ><span class="control-verb">BURY</span>
+            </div>
+          </div>
+          <div class="quick-rules">
+            <span class="eyebrow">THE SHORT VERSION</span>
+            <p>
+              Run over an acorn to pick it up. Bury it in an empty square on
+              your half. Most buried when time’s up wins.
+            </p>
+            <span class="rule-footnote"
+              >One acorn per pawful. One acorn per square.</span
+            >
+          </div>
+        </section>
+        <div class="touch-controls" aria-label="Touch controls">
+          <div class="touch-player" data-player="0">
+            <span>RED</span>
+            <div class="touch-dpad">
+              <button data-key="KeyW" aria-label="Red up">↑</button
+              ><button data-key="KeyA" aria-label="Red left">←</button
+              ><button data-key="KeyS" aria-label="Red down">↓</button
+              ><button data-key="KeyD" aria-label="Red right">→</button>
+            </div>
+            <button class="touch-bury" data-bury="0">Bury</button>
+          </div>
+          <div class="touch-player" data-player="1">
+            <span>ASH</span>
+            <div class="touch-dpad">
+              <button data-key="ArrowUp" aria-label="Ash up">↑</button
+              ><button data-key="ArrowLeft" aria-label="Ash left">←</button
+              ><button data-key="ArrowDown" aria-label="Ash down">↓</button
+              ><button data-key="ArrowRight" aria-label="Ash right">→</button>
+            </div>
+            <button class="touch-bury" data-bury="1">Bury</button>
+          </div>
+        </div>
+      </main>
+      <footer>
+        <span>A little woodland rivalry.</span
+        ><span
+          >MADE FOR TWO. PLAYED FOR KEEPS.
+          <span aria-hidden="true">✳</span></span
+        ><span>SCATTERHOARD © <span id="year">2026</span></span>
+      </footer>
+    </div>
+
+    <dialog id="help-dialog" aria-labelledby="help-title">
+      <button
+        class="dialog-close"
+        data-close="help-dialog"
+        aria-label="Close instructions"
+      >
+        ×</button
+      ><span class="eyebrow">A FIELD GUIDE FOR SMALL PAWS</span>
+      <h2 id="help-title">Make yourself<br /><em>at hoard.</em></h2>
+      <div class="instructions">
+        <div>
+          <span>01</span>
+          <p>
+            <strong>Scurry freely.</strong> Red uses WASD. Ash uses the arrow
+            keys. You can roam anywhere on the board.
+          </p>
+        </div>
+        <div>
+          <span>02</span>
+          <p>
+            <strong>Find your next acorn.</strong> Walk over one to pick it up.
+            You can carry one at a time. One drops at the start, then every 5
+            seconds.
+          </p>
+        </div>
+        <div>
+          <span>03</span>
+          <p>
+            <strong>Put down roots.</strong> Press Space (Red) or Enter (Ash) to
+            bury your acorn in the highlighted square. Keep still for a short
+            dig.
+          </p>
+        </div>
+        <div>
+          <span>04</span>
+          <p>
+            <strong>Protect your patch.</strong> Every square holds one acorn. A
+            burial scores for the side it’s on: Red’s left half or Ash’s right
+            half.
+          </p>
+        </div>
+      </div>
+      <div class="help-note">
+        The round lasts 60 seconds. Most acorns on your half wins. Equal scores
+        mean a draw. Press Esc to pause.
+      </div>
+      <button class="primary-button dialog-primary" data-close="help-dialog">
+        Got it. Let’s go.
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M5 15 15 5M5 5h10v10" />
+        </svg>
+      </button>
+    </dialog>
+    <dialog id="pause-dialog" aria-labelledby="pause-title">
+      <span class="eyebrow">EVEN SQUIRRELS NEED A MOMENT</span>
+      <h2 id="pause-title">Taking a<br /><em>breather.</em></h2>
+      <p>Your acorns aren’t going anywhere. Ready when you are.</p>
+      <button class="primary-button dialog-primary" id="resume-button">
+        Back to the clearing
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M5 15 15 5M5 5h10v10" />
+        </svg></button
+      ><button class="text-button dialog-secondary" id="pause-restart-button">
+        Start a fresh round
+      </button>
+    </dialog>
+    <dialog id="results-dialog" aria-labelledby="results-title">
+      <span class="result-icon" aria-hidden="true">✳</span
+      ><span class="eyebrow">THAT’S A WRAP, LITTLE HOARDERS</span>
+      <h2 id="results-title">Red takes<br /><em>the clearing.</em></h2>
+      <p id="results-subtitle">Good paws. Great planning.</p>
+      <div class="results-scores">
+        <div>
+          <span class="player-dot red-dot"></span> Red
+          <strong id="result-red">0</strong>
+        </div>
+        <span>:</span>
+        <div>
+          <span class="player-dot grey-dot"></span> Ash
+          <strong id="result-grey">0</strong>
+        </div>
+      </div>
+      <p class="results-detail" id="results-detail"></p>
+      <button class="primary-button dialog-primary" id="rematch-button">
+        One more round
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M5 15 15 5M5 5h10v10" />
+        </svg></button
+      ><button class="text-button dialog-secondary" data-close="results-dialog">
+        Admire the clearing
+      </button>
+    </dialog>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
