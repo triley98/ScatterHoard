@@ -6,6 +6,7 @@ import { OnlineSession, lobbyBase, defaultLobby } from './online.js';
 import { PlayerBadges, badgeIcon } from './badges.js';
 import { roundTransition } from './round-transition.js';
 import { SquirrelAI } from './ai.js';
+import { TouchControls } from './touch-controls.js';
 
 const $ = (id) => document.getElementById(id);
 const arrowIcon =
@@ -78,6 +79,7 @@ function anyDialogOpen() {
 }
 function clearInputs() {
   keys.clear();
+  touchControls.reset();
   onlineDig = false;
   online?.input({ x: 0, z: 0 });
 }
@@ -355,26 +357,14 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-for (const button of document.querySelectorAll('[data-key]')) {
-  button.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    if (anyDialogOpen() || game.phase !== 'playing') return;
-    button.setPointerCapture(event.pointerId);
-    keys.add(button.dataset.key);
-  });
-  const release = () => keys.delete(button.dataset.key);
-  button.addEventListener('pointerup', release);
-  button.addEventListener('pointercancel', release);
-  button.addEventListener('lostpointercapture', release);
-}
-for (const button of document.querySelectorAll('[data-bury]'))
-  button.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    if (!anyDialogOpen()) {
-      if (online) onlineDig = true;
-      else if (matchKind !== 'ai' || button.dataset.bury === '0') game.requestDig(Number(button.dataset.bury));
-    }
-  });
+const touchControls = new TouchControls(document.querySelector('.touch-controls'), {
+  canMove: id => !anyDialogOpen() && game.phase === 'playing' && !game.players[id].eliminated &&
+    (online ? online.slot === id : matchKind !== 'ai' || id === 0),
+  dig: id => {
+    if (online) onlineDig = true;
+    else game.requestDig(id);
+  },
+});
 
 function inputs() {
   return [
@@ -386,7 +376,10 @@ function inputs() {
       x: Number(keys.has('ArrowRight')) - Number(keys.has('ArrowLeft')),
       z: Number(keys.has('ArrowDown')) - Number(keys.has('ArrowUp')),
     },
-  ];
+  ].map((input, id) => ({
+    x: Math.max(-1, Math.min(1, input.x + touchControls.vectors[id].x)),
+    z: Math.max(-1, Math.min(1, input.z + touchControls.vectors[id].z)),
+  }));
 }
 
 function handleEvents(events = game.drainEvents()) {
@@ -410,10 +403,10 @@ function handleEvents(events = game.drainEvents()) {
 
 function syncEliminationNotice(transition) {
   // Derive the notice from shared state, so reconnecting players also see it.
-  // Only current-round eliminations appear, during the return and fade out.
+  // Only current-round eliminations appear, during the return, hoist and fade out.
   const lost = game.players.filter(player => player.eliminated && player.eliminatedRound === game.round);
   const show = game.mode === 'survival' && !$('match-view').hidden && lost.length > 0 &&
-    ['returning','fade-out'].includes(transition?.stage);
+    ['returning','hoisting','fade-out'].includes(transition?.stage);
   const notice = $('elimination-notice');
   if (notice.hidden !== !show) notice.hidden = !show;
   if (!show) return;
@@ -746,7 +739,8 @@ function syncUI() {
     }
     $(name + '-score-label').textContent = survival ? 'DELIVERED' : 'BURIED';
     const touch = document.querySelector(`.touch-player[data-player="${id}"]`);
-    touch.hidden = (matchKind === 'ai' && id === 1) || player.eliminated;
+    touch.hidden = (online ? online.slot !== id : matchKind === 'ai' && id === 1) || player.eliminated;
+    for (const button of touch.querySelectorAll('button')) button.disabled = phase !== 'playing' || anyDialogOpen();
   }
   $('round-progress').hidden = survival;
   $('survival-help').hidden = !survival;
@@ -771,7 +765,7 @@ function syncUI() {
   $('lobby-mode-description').textContent = `Host ${selectedMode === 'survival' ? 'Survival' : 'Arcade'} and share its six-character code, or join a friend’s room. You’re Red; your friend plays Ash. The host chooses the game mode.`;
   document.querySelectorAll('.round-facts b')[1].textContent = survival ? '∞' : '03';
   document.querySelector('.quick-rules p').textContent = survival
-    ? 'Bring five acorns to the ring at your own tree each round. Bury extras for future rounds. Miss the goal and you’re out; the other squirrel keeps going.'
+    ? 'Bring five acorns to the basket at your own tree each round. Bury extras for future rounds. Miss the goal and you’re out; the other squirrel keeps going.'
     : 'Bury acorns on your half and remember your hiding spots. Dig empty-handed to steal any stash — or uncover a surprise.';
   if (survival) {
     $('round-label').textContent = finished ? 'SURVIVAL · RUN COMPLETE' : `SURVIVAL · ROUND ${game.round}`;

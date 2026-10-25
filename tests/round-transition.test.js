@@ -4,17 +4,19 @@ import { ROUND_TIMING, roundTransition, transitionDuration, returnPath, pointOnP
 import { Game, RULES } from '../src/game.js';
 import { overlapsRock } from '../src/game.js';
 
-test('return, three-second fade out, three-second dawn, then countdown run in order', () => {
-  assert.equal(transitionDuration(), 12);
+test('return, basket hoist, three-second fade out, three-second dawn, then countdown run in order', () => {
+  assert.equal(transitionDuration(), 14);
   const at = seconds => roundTransition(transitionDuration() - seconds);
   assert.equal(at(0).stage, 'returning');
   assert.equal(at(2.99).opacity, 0);
-  assert.deepEqual(at(3), { stage: 'fade-out', progress: 0, opacity: 0, daylight: false });
-  assert.equal(at(4.5).opacity, 0.5);
-  assert.deepEqual(at(6), { stage: 'fade-in', progress: 0, opacity: 1, daylight: true });
-  assert.equal(at(7.5).opacity, 0.5);
-  assert.deepEqual(at(9), { stage: 'countdown', progress: 0, opacity: 0, daylight: true });
-  assert.equal(at(12).progress, 1);
+  assert.deepEqual(at(3), { stage: 'hoisting', progress: 0, opacity: 0, daylight: false });
+  assert.equal(at(4).progress, 0.5);
+  assert.deepEqual(at(5), { stage: 'fade-out', progress: 0, opacity: 0, daylight: false });
+  assert.equal(at(6.5).opacity, 0.5);
+  assert.deepEqual(at(8), { stage: 'fade-in', progress: 0, opacity: 1, daylight: true });
+  assert.equal(at(9.5).opacity, 0.5);
+  assert.deepEqual(at(11), { stage: 'countdown', progress: 0, opacity: 0, daylight: true });
+  assert.equal(at(14).progress, 1);
   assert.equal(ROUND_TIMING.countdown, 3);
 });
 
@@ -28,9 +30,9 @@ test('the last round returns, fades to black, and stays black behind results', (
   assert.equal(game.phase, 'intermission');
   assert.equal(game.players[0].dig, null);
   assert.equal(game.requestDig(0), false);
-  assert.equal(game.intermissionRemaining, 6);
+  assert.equal(game.intermissionRemaining, 8);
   assert.ok(!game.drainEvents().some(event => event.type === 'finish'));
-  game.update(4.5);
+  game.update(6.5);
   const frozen = roundTransition(game.intermissionRemaining, true);
   assert.equal(frozen.opacity, 0.5);
   game.pause();

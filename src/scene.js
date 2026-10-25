@@ -79,6 +79,67 @@ function makeAcorn(scale = 1) {
   return group;
 }
 
+export function makeTreeBasket(id) {
+  const root = new THREE.Group();
+  root.name = `tree-basket-${id}`;
+  const basket = new THREE.Group();
+  root.add(basket);
+  const wicker = material(0xc39458, { side: THREE.DoubleSide });
+  const reed = material(0xe0b578);
+  mesh(new THREE.CylinderGeometry(0.72, 0.53, 0.65, 32, 1, true), wicker,
+    [0, 0.4, 0], null, basket);
+  mesh(new THREE.CylinderGeometry(0.53, 0.53, 0.1, 32), wicker,
+    [0, 0.1, 0], null, basket);
+  // Raised horizontal reeds and alternating upright stakes give the basket
+  // a woven silhouette without a large texture or a draw call per strand.
+  const hoops = new THREE.InstancedMesh(new THREE.TorusGeometry(1, 0.035, 5, 48), reed, 10);
+  const stakes = new THREE.InstancedMesh(geometries.cylinder, wicker, 32);
+  const transform = new THREE.Object3D();
+  const up = new THREE.Vector3(0, 1, 0);
+  for (let row = 0; row < 10; row++) {
+    const radius = 0.54 + row / 9 * 0.18;
+    transform.position.set(0, 0.1 + row / 9 * 0.63, 0);
+    transform.rotation.set(Math.PI / 2, 0, 0);
+    transform.scale.set(radius, radius, 1);
+    transform.updateMatrix(); hoops.setMatrixAt(row, transform.matrix);
+  }
+  for (let i = 0; i < 32; i++) {
+    const angle = i * Math.PI / 16;
+    const bottom = new THREE.Vector3(Math.cos(angle) * 0.53, 0.09, Math.sin(angle) * 0.53);
+    const top = new THREE.Vector3(Math.cos(angle) * 0.73, 0.75, Math.sin(angle) * 0.73);
+    transform.position.copy(bottom).add(top).multiplyScalar(0.5);
+    transform.quaternion.setFromUnitVectors(up, top.clone().sub(bottom).normalize());
+    transform.scale.set(0.025, top.distanceTo(bottom), 0.025);
+    transform.updateMatrix(); stakes.setMatrixAt(i, transform.matrix);
+  }
+  for (const weave of [hoops, stakes]) {
+    weave.castShadow = true; weave.receiveShadow = true; basket.add(weave);
+  }
+  const rim = mesh(new THREE.TorusGeometry(0.73, 0.065, 8, 48), reed,
+    [0, 0.75, 0], null, basket);
+  rim.rotation.x = Math.PI / 2;
+  const handlePoints = Array.from({length:17}, (_, i) => {
+    const angle = i / 16 * Math.PI;
+    return new THREE.Vector3(Math.cos(angle) * 0.66, 0.74 + Math.sin(angle) * 0.75, 0);
+  });
+  mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(handlePoints), 24, 0.045, 6, false),
+    reed, [0, 0, 0], null, basket);
+  const tag = mesh(new THREE.BoxGeometry(0.22, 0.28, 0.035), material(id ? 0xdce5cf : 0xb6653e),
+    [0, 0.55, 0.705], null, basket);
+  tag.rotation.z = -0.15;
+  const contents = Array.from({length:RULES.survivalQuota}, (_, i) => {
+    const acorn = makeAcorn(0.65);
+    const angle = i / RULES.survivalQuota * Math.PI * 2;
+    acorn.position.set(Math.cos(angle) * 0.32, 0.52 + (i % 2) * 0.07, Math.sin(angle) * 0.32);
+    acorn.visible = false; basket.add(acorn);
+    return acorn;
+  });
+  const rope = mesh(geometries.cylinder, material(0xe2c18b), [0, 6, 0], [0.035, 10, 0.035], root);
+  const base = treeBase(id);
+  root.position.set(base.x - RULES.width / 2 + (id ? -1.25 : 1.25), 0, 1.65);
+  return { root, basket, rope, contents };
+}
+
 export function makeSquirrel(id) {
   const root = new THREE.Group();
   const body = new THREE.Group();
@@ -266,15 +327,10 @@ export class ForestScene {
     this.scene.add(this.rockGroup);
     this.rockLayout = '';
     this.makeEndTrees();
-    this.deliveryRings = [0,1].map(id => {
-      const ring = new THREE.Mesh(new THREE.RingGeometry(RULES.deliveryRadius - 0.14, RULES.deliveryRadius, 64),
-        new THREE.MeshBasicMaterial({color:id ? 0xe0e7d5 : 0xe0a06c, side:THREE.DoubleSide, transparent:true, opacity:0.85, depthWrite:false}));
-      const base = treeBase(id);
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.set(base.x - RULES.width / 2, 0.07, base.z - RULES.depth / 2);
-      ring.name = `delivery-zone-${id}`;
-      this.scene.add(ring);
-      return ring;
+    this.baskets = [0,1].map(id => {
+      const basket = makeTreeBasket(id);
+      this.scene.add(basket.root);
+      return basket;
     });
     this.makeBoardTexture();
     this.windLeaves = new WindLeaves(this.scene);
@@ -566,9 +622,30 @@ export class ForestScene {
     this.ambient.intensity = light.ambientIntensity;
     this.windLeaves.update(dt, { active: animate, reducedMotion: this.reducedMotion });
     this.demoAcorns.visible = game.phase === 'ready';
-    this.deliveryRings.forEach((ring,id) => {
-      ring.visible = game.mode === 'survival' && !game.players[id].eliminated && game.phase !== 'finished';
-      ring.material.color.set(game.players[id].delivered >= RULES.survivalQuota ? 0x9fc475 : id ? 0xe0e7d5 : 0xe0a06c);
+    this.baskets.forEach(({basket, rope, contents}, id) => {
+      const player = game.players[id];
+      const retired = player.eliminated && player.eliminatedRound < game.round;
+      let lift = retired || game.phase === 'finished' ? 1 : 0;
+      if (between && !retired) {
+        if (transition.stage === 'hoisting') lift = transition.progress;
+        else if (transition.stage === 'fade-out' || transition.stage === 'black') lift = 1;
+        else if (transition.stage === 'fade-in') lift = player.eliminated ? 1 : 1 - transition.progress;
+        else if (player.eliminated && transition.stage === 'countdown') lift = 1;
+      }
+      if (this.reducedMotion) lift = lift > 0 ? 1 : 0;
+      const eased = THREE.MathUtils.smoothstep(lift, 0, 1);
+      basket.position.set(Math.sin(lift * Math.PI * 6) * Math.sin(lift * Math.PI) * 0.06,
+        0.02 + eased * 10.5, -THREE.MathUtils.smoothstep(eased, 0.65, 1) * 2.1);
+      basket.rotation.z = Math.sin(lift * Math.PI * 6) * Math.sin(lift * Math.PI) * 0.035;
+      const stored = between && ['fade-in','countdown'].includes(transition.stage);
+      contents.forEach((acorn, i) => { acorn.visible = game.mode === 'survival' && !stored && i < player.delivered; });
+      // A taut rope shortens as the basket is reeled up into the leaves.
+      const top = new THREE.Vector3(0, 12.1, -2.1);
+      const bottom = new THREE.Vector3(basket.position.x, basket.position.y + 1.49, basket.position.z);
+      const direction = top.clone().sub(bottom);
+      rope.position.copy(top).add(bottom).multiplyScalar(0.5);
+      rope.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize());
+      rope.scale.set(0.035, direction.length(), 0.035);
     });
     if (animate) {
       this.demoAcorns.children.forEach((acorn, i) => {
@@ -599,6 +676,7 @@ export class ForestScene {
         (transition?.stage === 'fade-in' && !game.matchEnding);
       squirrel.root.visible = !player.eliminated ||
         (between && player.eliminatedRound === game.round && !intro);
+      if (this.reducedMotion && (between && !intro || game.phase === 'finished')) squirrel.root.visible = false;
       let scripted = false, scriptedMoving = false;
       let climb = 0;
       let climbPitch = 0;

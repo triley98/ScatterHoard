@@ -8,11 +8,13 @@ for (const mode of ['arcade','survival']) test(`two separate browsers host, join
   const hostContext = await browser.newContext({
     baseURL: 'http://127.0.0.1:5173',
     deviceScaleFactor: 0.25,
+    hasTouch: true,
     viewport: { width: 1100, height: 850 },
   });
   const guestContext = await browser.newContext({
     baseURL: 'http://127.0.0.1:5173',
     deviceScaleFactor: 0.25,
+    hasTouch: true,
     viewport: { width: 1100, height: 850 },
   });
   // Exercise real sockets, reload tickets and UI without software WebGL drawing
@@ -75,12 +77,18 @@ for (const mode of ['arcade','survival']) test(`two separate browsers host, join
       .toBe('playing');
     expect(hostStates.at(-1).mode).toBe(mode);
     expect(guestStates.at(-1).mode).toBe(mode);
+    await expect(host.locator('[data-joystick="0"]')).toBeVisible();
+    await expect(host.locator('[data-joystick="1"]')).toBeHidden();
+    await expect(guest.locator('[data-joystick="1"]')).toBeVisible();
+    await expect(guest.locator('[data-joystick="0"]')).toBeHidden();
     const x = hostStates.at(-1).players[0].x;
-    await host.keyboard.down('d');
+    const joystick = await host.locator('[data-joystick="0"]').boundingBox();
+    await host.mouse.move(joystick.x + joystick.width / 2 + 35, joystick.y + joystick.height / 2);
+    await host.mouse.down();
     await expect
       .poll(() => guestStates.at(-1)?.players[0].x, { timeout: 6000 })
       .toBeGreaterThan(x + 1);
-    await host.keyboard.up('d');
+    await host.mouse.up();
     await expect
       .poll(() => hostStates.at(-1)?.players[0].x)
       .toBeGreaterThan(x + 1);

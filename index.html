@@ -307,24 +307,15 @@
         <div class="touch-controls" aria-label="Touch controls">
           <div class="touch-player" data-player="0">
             <span>RED</span>
-            <div class="touch-dpad">
-              <button data-key="KeyW" aria-label="Red up">↑</button
-              ><button data-key="KeyA" aria-label="Red left">←</button
-              ><button data-key="KeyS" aria-label="Red down">↓</button
-              ><button data-key="KeyD" aria-label="Red right">→</button>
-            </div>
-            <button class="touch-bury" data-bury="0">Dig</button>
+            <button class="touch-joystick" data-joystick="0" aria-label="Red movement joystick" aria-describedby="joystick-help"><span class="joystick-thumb" aria-hidden="true"></span></button>
+            <button class="touch-bury" data-bury="0" aria-label="Red dig">Dig</button>
           </div>
           <div class="touch-player" data-player="1">
             <span>ASH</span>
-            <div class="touch-dpad">
-              <button data-key="ArrowUp" aria-label="Ash up">↑</button
-              ><button data-key="ArrowLeft" aria-label="Ash left">←</button
-              ><button data-key="ArrowDown" aria-label="Ash down">↓</button
-              ><button data-key="ArrowRight" aria-label="Ash right">→</button>
-            </div>
-            <button class="touch-bury" data-bury="1">Dig</button>
+            <button class="touch-joystick" data-joystick="1" aria-label="Ash movement joystick" aria-describedby="joystick-help"><span class="joystick-thumb" aria-hidden="true"></span></button>
+            <button class="touch-bury" data-bury="1" aria-label="Ash dig">Dig</button>
           </div>
+          <span id="joystick-help" class="sr-only">Drag to move in any direction. Release to stop. Use the separate Dig button to dig.</span>
         </div>
         </div>
       </main>
@@ -397,7 +388,7 @@
         ×</button
       ><span class="eyebrow">A FIELD GUIDE FOR SMALL PAWS</span>
       <h2 id="help-title">Make yourself<br /><em>at hoard.</em></h2>
-      <p id="survival-help" hidden>Survival: each squirrel must deliver five acorns to the ring at the base of its starting tree before the 60-second round ends. Deliveries happen automatically while carrying an acorn into your own ring. Bury extras to recover in later rounds. Drops arrive every three seconds in round one, five seconds in round two, seven seconds in round three, then one second slower each round after that. Players who fall short are eliminated. The other squirrel keeps playing alone until it also misses the goal. The player who survives more rounds wins; elimination in the same round is a draw.</p>
+      <p id="survival-help" hidden>Survival: each squirrel must deliver five acorns to the wicker basket at the base of its starting tree before the 60-second round ends. Deliveries happen automatically while bringing an acorn to your own basket. Bury extras to recover in later rounds. Drops arrive every three seconds in round one, five seconds in round two, seven seconds in round three, then one second slower each round after that. Players who fall short are eliminated. The other squirrel keeps playing alone until it also misses the goal. The player who survives more rounds wins; elimination in the same round is a draw.</p>
       <div class="instructions">
         <div>
           <span>01</span>
@@ -426,7 +417,7 @@
         <div>
           <span>04</span>
           <p>
-            <strong>A fresh run each round.</strong> Return to your tree, then watch the clearing fade to black and back to daylight before the next three-second countdown. Loose acorns and acorns in paws clear between rounds; buried stashes remain. Two mirrored 3 × 3 rocks and two 2 × 2 stumps per patch block your path. Leaves and grass are only scenery.
+            <strong>A fresh run each round.</strong> Return to your tree and reel the basket into the canopy, then watch the clearing fade to black and back to daylight before the next three-second countdown. Loose acorns and acorns in paws clear between rounds; buried stashes remain. Two mirrored 3 × 3 rocks and two 2 × 2 stumps per patch block your path. Leaves and grass are only scenery.
             <br /><br /><strong>The forest has surprises.</strong> Every completed search
             has a 10% powerup chance: three extra acorns, six seconds of speed,
             a helpful crow, six seconds of slowdown, or a crow stealing from

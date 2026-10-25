@@ -67,16 +67,16 @@ test('forest obstacles, wind, sunlight, and squirrels follow the full round tran
     const climbPaused = JSON.stringify(frozen) === JSON.stringify(forest.squirrels.map(s => s.root.position.toArray()));
     game.resume(); game.update(0.6); forest.render(63, 1/60);
     const treetops = forest.squirrels.map(s => s.root.position.toArray());
-    game.update(3); forest.render(66, 1/60);
+    game.update(5); forest.render(68, 1/60);
     const resetAtBlack = forest.sun.intensity;
     game.update(5.99);
     const waiting = game.phase === 'intermission';
-    game.update(0.01); forest.render(72, 1/60);
-    forest.reducedMotion = true; forest.render(72, 1/60);
+    game.update(0.01); forest.render(74, 1/60);
+    forest.reducedMotion = true; forest.render(74, 1/60);
     return {breakStart, exitStarts, climbing, climbPaused, treetops, resetAtBlack,
       waiting, phase:game.phase, round:game.round, intensity:forest.sun.intensity, leavesHidden:!forest.windLeaves.mesh.visible};
   });
-  expect(transition.breakStart).toBe(12);
+  expect(transition.breakStart).toBe(14);
   expect(transition.exitStarts).toEqual([16,-16]);
   expect(transition.climbing.every(s => s.y > 1 && s.pitch < -1.5)).toBe(true);
   expect(transition.climbPaused).toBe(true);
@@ -106,7 +106,7 @@ test('forest obstacles, wind, sunlight, and squirrels follow the full round tran
     game.countdown = 2;
     forest.render(0, 0);
     const emerged = forest.squirrels.every(s => s.root.position.y < 7);
-    game.phase = 'intermission'; game.intermissionRemaining = 9;
+    game.phase = 'intermission'; game.intermissionRemaining = 11;
     const exit = hiddenByLeaves();
     return {entrance, emerged, exit};
   });

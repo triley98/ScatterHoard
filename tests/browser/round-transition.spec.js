@@ -85,11 +85,11 @@ test('held dig keys never scroll or activate results, and fades finish before th
   // A held dig must not click the rematch button when results take focus.
   await page.evaluate(() => {
     const { game } = window.fixture;
-    game.update(60 - game.elapsed + 12 + 59.8);
+    game.update(60 - game.elapsed + 14 + 59.8);
   });
   await page.keyboard.down('Space');
   await page.keyboard.down('Enter');
-  await advance(page, 6400);
+  await advance(page, 8400);
   await expect(page.locator('#results-dialog')).toBeVisible();
   await expect(page.locator('#round-fade')).toHaveCSS('opacity', '1');
   await expect(page.locator('#round-fade')).toHaveAttribute('data-stage', 'black');

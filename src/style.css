@@ -1821,55 +1821,93 @@ dialog > p {
     font-size: 75px;
   }
 }
+@media (max-width: 360px) {
+  .site-header { height: auto; min-height: 77px; flex-wrap: wrap; gap: 8px; padding: 14px 0; }
+  .header-right { margin-left: auto; }
+  .round-facts { gap: 8px; }
+}
 @media (pointer: coarse) {
   .touch-controls {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 680px;
+    z-index: 8;
     display: flex;
-    gap: 20px;
+    gap: 18px;
     justify-content: space-around;
-    margin: 10px 0 25px;
-    padding: 15px 0;
+    padding: 10px 14px calc(12px + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid var(--line);
+    background: #f5f3ebf5;
+    box-shadow: 0 -6px 24px #293d3312;
+    backdrop-filter: blur(12px);
   }
+  #match-view { padding-bottom: 145px; }
   .touch-player {
-    display: flex;
-    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto auto;
+    justify-content: space-between;
     align-items: center;
     gap: 8px;
   }
   .touch-player > span {
+    grid-column: 1 / -1;
+    text-align: center;
     font-size: 9px;
     letter-spacing: 1.5px;
     font-weight: 700;
   }
-  .touch-dpad {
-    display: grid;
-    grid-template-columns: repeat(3, 35px);
-    grid-template-rows: repeat(2, 30px);
-    gap: 4px;
+  .touch-joystick {
+    position: relative;
+    width: clamp(72px, 22vw, 88px);
+    height: clamp(72px, 22vw, 88px);
+    border-radius: 50%;
+    border: 1px solid #bcc7ac;
+    background: radial-gradient(circle, #dde4d0 0 27%, #ebeddf 28% 60%, #d7deca 61% 63%, #f9f7ec 64%);
+    box-shadow: inset 0 2px 5px #354f3c15;
+    padding: 0;
+    touch-action: none;
+    -webkit-touch-callout: none;
   }
-  .touch-dpad > button {
-    border: 1px solid #d6dbcb;
-    border-radius: 5px;
-    background: #fcfaf1;
-    color: var(--ink);
+  .joystick-thumb {
+    position: absolute;
+    width: 42%;
+    height: 42%;
+    left: 29%;
+    top: 29%;
+    border-radius: 50%;
+    background: #b66b47;
+    border: 3px solid #d3936a;
+    box-shadow: 0 3px 7px #293d3330, inset 0 1px 2px #ffebc980;
+    transform: translate(var(--stick-x, 0px), var(--stick-y, 0px));
+    transition: transform 0.12s ease-out;
+    pointer-events: none;
   }
-  .touch-dpad > button:first-child {
-    grid-column: 2;
-  }
-  .touch-dpad > button:nth-child(2) {
-    grid-column: 1;
-  }
+  [data-player="1"] .joystick-thumb { background: #718a7e; border-color: #a5b6a1; }
+  .touch-joystick.engaged .joystick-thumb { transition: none; }
+  .touch-joystick:disabled, .touch-bury:disabled { opacity: 0.45; }
   .touch-bury {
-    border: 0;
+    width: 52px;
+    height: 52px;
+    display: grid;
+    place-items: center;
+    border: 3px solid #58734d;
     background: #354f3c;
     color: #faf6e6;
-    border-radius: 5px;
-    padding: 9px 25px;
+    border-radius: 50%;
+    padding: 0;
     font-size: 11px;
+    font-weight: 700;
+    box-shadow: 0 3px 0 #243d2b;
   }
-  .touch-dpad button:active,
   .touch-bury:active {
-    background: #c6d1b5;
+    background: #58734d;
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 #243d2b;
   }
 }
 @media (prefers-reduced-motion: reduce) {

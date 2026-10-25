@@ -111,7 +111,7 @@ test('the centered Survival notice handles simultaneous eliminations without req
   expect(card.y+card.height/2).toBeCloseTo(arena.y+arena.height/2,0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);
   await page.screenshot({path:testInfo.outputPath('survival-both-out-mobile.png')});
-  await advance(page,3200);
+  await advance(page,5200);
   await expect(page.locator('#elimination-notice')).toBeVisible();
   await expect(page.locator('#round-fade')).toHaveAttribute('data-stage','fade-out');
   await advance(page,3000);
