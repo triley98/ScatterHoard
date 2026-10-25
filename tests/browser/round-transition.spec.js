@@ -1,3 +1,4 @@
+import { chooseGame } from './helpers.js';
 import { test, expect } from '@playwright/test';
 
 test.use({ deviceScaleFactor: 0.5 });
@@ -15,6 +16,7 @@ async function openGame(page) {
   });
   await page.clock.install({ time: new Date('2026-10-24T00:00:00Z') });
   await page.goto('/');
+  await chooseGame(page);
   await page.waitForFunction(() => window.fixture);
   await page.clock.pauseAt(new Date('2026-10-24T00:10:00Z'));
   await page.getByRole('button', { name: 'Let’s forage' }).click();
@@ -111,6 +113,7 @@ test('held dig keys never scroll or activate results, and fades finish before th
 
 test('keyboard activation and typing still work in menus', async ({ page }) => {
   await page.goto('/');
+  await chooseGame(page);
   await page.getByRole('button', { name: 'How to play' }).focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('#help-dialog')).toBeVisible();

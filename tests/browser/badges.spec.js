@@ -1,3 +1,4 @@
+import { chooseGame } from './helpers.js';
 import { test, expect } from '@playwright/test';
 
 test.use({ deviceScaleFactor: 0.5 });
@@ -18,6 +19,7 @@ test('all powerups use the requested octagonal icons above their player, without
   });
   await page.clock.install({ time: new Date('2026-10-24T00:00:00Z') });
   await page.goto('/');
+  await chooseGame(page);
   await page.clock.pauseAt(new Date('2026-10-24T00:10:00Z'));
   await page.getByRole('button', { name: 'Let’s forage' }).click();
   await advance(page, 3200);

@@ -1,6 +1,7 @@
+import { chooseGame } from './helpers.js';
 import { test, expect } from '@playwright/test';
 
-test('two separate browsers host, join, synchronize movement, reconnect, and keep burials private', async ({
+for (const mode of ['arcade','survival']) test(`two separate browsers host, join, synchronize movement, reconnect, and keep burials private (${mode})`, async ({
   browser,
 }) => {
   test.setTimeout(180000);
@@ -48,6 +49,7 @@ test('two separate browsers host, join, synchronize movement, reconnect, and kee
   }
   try {
     await host.goto('/');
+    await chooseGame(host, mode);
     await host.getByRole('button', { name: 'Online with a friend' }).click();
     await host.getByRole('button', { name: 'Host a clearing' }).click();
     await expect(host.locator('#room-description')).toContainText('You’re Red');
@@ -71,6 +73,8 @@ test('two separate browsers host, join, synchronize movement, reconnect, and kee
     await expect
       .poll(() => guestStates.at(-1)?.phase, { timeout: 10000 })
       .toBe('playing');
+    expect(hostStates.at(-1).mode).toBe(mode);
+    expect(guestStates.at(-1).mode).toBe(mode);
     const x = hostStates.at(-1).players[0].x;
     await host.keyboard.down('d');
     await expect
@@ -141,6 +145,7 @@ test('searching empty-handed shows an octagonal acorn rain badge above the finde
   });
   await page.clock.install({ time: new Date('2026-10-24T00:00:00Z') });
   await page.goto('/');
+  await chooseGame(page);
   await page.clock.pauseAt(new Date('2026-10-24T00:10:00Z'));
   await page.getByRole('button', { name: 'Let’s forage' }).click();
   for (let i = 0; i < 16; i++) await page.clock.fastForward(200);

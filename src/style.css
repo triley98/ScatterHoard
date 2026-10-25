@@ -1865,3 +1865,28 @@ dialog > p {
 .result-icon {
   font-family: 'DejaVu Sans', sans-serif;
 }
+
+.main-menu { padding: 66px 0 86px; min-height: 65vh; }
+.main-menu h1 { font-size: clamp(42px, 6vw, 76px); line-height: 1.08; letter-spacing: -3px; margin: 22px 0 18px; }
+.main-menu h1 em { color: var(--orange); font-weight: 400; }
+.main-menu > p { color: #6c7869; max-width: 620px; line-height: 1.7; margin-bottom: 30px; }
+.menu-options, .match-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.match-choices { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 25px; }
+.menu-card { border: 1px solid var(--line); border-radius: 15px; padding: 30px; background: #faf9f1; color: var(--ink); text-align: left; display: flex; flex-direction: column; gap: 22px; cursor: pointer; }
+.menu-card strong { display: flex; align-items: center; justify-content: space-between; font-size: 28px; letter-spacing: -1px; }
+.menu-card strong span { color: var(--orange); font-size: 30px; }
+.menu-card > span:not(.eyebrow) { font-size: 14px; line-height: 1.7; color: #6c7869; }
+.menu-card small { font-size: 9px; letter-spacing: 1.4px; margin-top: auto; }
+.menu-card:hover, .menu-card:focus-visible { border-color: #7b9461; background: #edf0e0; }
+.survival-card { background: #e9eddf; }
+.match-choices .menu-card strong { font-size: 22px; }
+#menu-button { white-space: nowrap; }
+#survival-help { margin-top: 28px; padding: 18px; background: #e9eddf; border-radius: 10px; line-height: 1.7; }
+@media (max-width: 700px) {
+  .main-menu { padding: 40px 0; }
+  .menu-options, .match-choices { grid-template-columns: 1fr; gap: 14px; }
+  .menu-card { padding: 23px; gap: 14px; }
+  .play-modes { flex-wrap: wrap; gap: 12px; }
+  .play-modes > div { flex-wrap: wrap; }
+  .header-right .local-badge { display: none; }
+}

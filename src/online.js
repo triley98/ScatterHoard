@@ -40,10 +40,12 @@ export class OnlineSession extends EventTarget {
     this.attempts = 0;
   }
 
-  static async host(base) {
+  static async host(base, mode = 'arcade') {
     base = lobbyBase(base);
     const response = await fetch(`${base}/api/rooms`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }),
       signal: AbortSignal.timeout(12000),
     });
     const data = await response.json().catch(() => ({}));
@@ -82,6 +84,7 @@ export class OnlineSession extends EventTarget {
       socket.send(JSON.stringify({ type: 'hello', token: this.ticket })),
     );
     socket.addEventListener('message', (event) => {
+      if (this.closed) return;
       const data = JSON.parse(event.data);
       if (data.type === 'welcome') {
         clearTimeout(timeout);

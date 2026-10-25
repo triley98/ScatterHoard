@@ -54,6 +54,8 @@ export class PlayerBadges {
       existing.age = 0;
       existing.node.setAttribute('aria-label', description);
       existing.node.title = description;
+      if (chip && existing.node.querySelector('.badge-chip'))
+        existing.node.querySelector('.badge-chip').textContent = chip;
       this.announcements.textContent = description;
       return;
     }
@@ -91,6 +93,10 @@ export class PlayerBadges {
       );
     if (event.type === 'bury')
       this.show(event.player, 'buried', `${name} buried an acorn.`);
+    if (event.type === 'deliver')
+      this.show(event.player, 'acorn', `${name} delivered ${event.delivered} of 5 acorns home.`, {chip:`${event.delivered}/5`, key:'delivery'});
+    if (event.type === 'eliminate')
+      this.show(event.player, 'blocked', `${name} is out after round ${event.round}.`, {harmful:true});
     if (event.type === 'hint')
       this.show(event.player, 'blocked', `${name} cannot dig here.`, {
         harmful: true,

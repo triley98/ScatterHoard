@@ -1,3 +1,4 @@
+import { chooseGame } from './helpers.js';
 import { test, expect } from '@playwright/test';
 
 // Keep the long timer simulation affordable on software WebGL; visual QA uses full resolution.
@@ -22,6 +23,7 @@ test('a real browser can render, collect, bury, pause, finish, and rematch', asy
   });
   await page.clock.install({ time: new Date('2026-10-24T00:00:00Z') });
   await page.goto('/');
+  await chooseGame(page);
   await page.clock.pauseAt(new Date('2026-10-24T00:10:00Z'));
   await expect(
     page.getByRole('heading', { name: 'Small paws. Big plans.' }),
@@ -139,6 +141,7 @@ test('the layout fits a narrow screen and sound and help controls work', async (
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
+  await chooseGame(page);
   await expect(page.locator('#renderer-error')).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
     390,

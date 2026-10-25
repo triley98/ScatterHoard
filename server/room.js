@@ -4,13 +4,13 @@ const emptyInput = () => ({ x: 0, z: 0, at: 0, seq: -1 });
 
 /** One authoritative room. Tokens stay private and snapshots contain no burial map. */
 export class MatchRoom {
-  constructor({ code, hostToken, random, now = Date.now() }) {
+  constructor({ code, hostToken, random, mode = 'arcade', now = Date.now() }) {
     this.code = code;
     this.tokens = [hostToken, null];
     this.connected = [false, false];
     this.ready = [false, false];
     this.inputs = [emptyInput(), emptyInput()];
-    this.game = new Game({ random });
+    this.game = new Game({ random, mode });
     this.countdown = 0;
     this.epoch = 0;
     this.lastTick = now;
@@ -34,7 +34,7 @@ export class MatchRoom {
       throw new Error('This squirrel is already connected in another tab.');
     this.connected[slot] = true;
     this.inputs[slot] = emptyInput();
-    if (this.connected.every(Boolean) && this.game.phase === 'paused') {
+    if (this.game.players.every((player,id) => player.eliminated || this.connected[id]) && this.game.phase === 'paused') {
       this.game.phase = this.resumePhase || 'ready';
       this.resumePhase = null;
       this.disconnectedAt = null;
@@ -46,6 +46,7 @@ export class MatchRoom {
     this.connected[slot] = false;
     this.ready[slot] = false;
     this.inputs[slot] = emptyInput();
+    if (this.game.players[slot].eliminated) return;
     if (['playing', 'countdown', 'intermission'].includes(this.game.phase)) {
       this.resumePhase = this.game.phase;
       this.game.phase = 'paused';
@@ -71,7 +72,7 @@ export class MatchRoom {
   }
 
   input(slot, message, now) {
-    if (!this.connected[slot] || this.game.phase !== 'playing') return;
+    if (!this.connected[slot] || this.game.phase !== 'playing' || this.game.players[slot].eliminated) return;
     if (
       !Number.isSafeInteger(message.seq) ||
       message.seq <= this.inputs[slot].seq

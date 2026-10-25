@@ -1,4 +1,5 @@
 import { MatchRoom } from './room.js';
+import { GAME_MODES } from '../src/game.js';
 
 const ROOM_CODE = /^[A-HJ-NP-Z2-9]{6}$/;
 const json = (body, status = 200, headers = {}) =>
@@ -7,6 +8,8 @@ const json = (body, status = 200, headers = {}) =>
     headers: { 'Cache-Control': 'no-store', ...headers },
   });
 const token = () => crypto.randomUUID();
+const activeSurvival = room => room?.game.mode === 'survival' &&
+  ['playing','countdown','intermission','paused'].includes(room.game.phase) && room.connected.some(Boolean);
 
 function allowedOrigin(request, env) {
   const origin = request.headers.get('Origin');
@@ -42,6 +45,11 @@ export default {
     if (url.pathname === '/api/health')
       return json({ service: 'scatterhoard-lobby', version: 1 }, 200, cors);
     if (url.pathname === '/api/rooms' && request.method === 'POST') {
+      let options;
+      try { options = await request.text(); options = options ? JSON.parse(options) : {}; }
+      catch { return json({ error: 'Invalid room options.' }, 400, cors); }
+      const mode = options?.mode ?? 'arcade';
+      if (!GAME_MODES.includes(mode)) return json({ error: 'Choose Arcade or Survival.' }, 400, cors);
       const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
       const bytes = crypto.getRandomValues(new Uint8Array(6));
       const code = [...bytes]
@@ -52,7 +60,7 @@ export default {
       const result = await stub.fetch(
         new Request('https://room.internal/init', {
           method: 'POST',
-          body: JSON.stringify({ code, hostToken }),
+          body: JSON.stringify({ code, hostToken, mode }),
         }),
       );
       if (!result.ok)
@@ -74,7 +82,7 @@ export default {
   },
 };
 
-/** Non-hibernating WebSockets keep a three-round authoritative match resident. */
+/** Non-hibernating WebSockets keep an authoritative match resident. */
 export class Lobby {
   constructor(ctx) {
     this.ctx = ctx;
@@ -92,14 +100,15 @@ export class Lobby {
     if (url.pathname === '/init' && request.method === 'POST') {
       if (this.room) return json({ error: 'Room already exists.' }, 409);
       const meta = { ...(await request.json()), now: Date.now() };
-      if (!ROOM_CODE.test(meta.code) || typeof meta.hostToken !== 'string')
+      if (!ROOM_CODE.test(meta.code) || typeof meta.hostToken !== 'string' ||
+        !GAME_MODES.includes(meta.mode ?? 'arcade'))
         return json({ error: 'Invalid room.' }, 400);
       this.room = new MatchRoom(meta);
       await this.ctx.storage.put('room', meta);
       await this.ctx.storage.setAlarm(Date.now() + 15 * 60 * 1000);
       return json({ ok: true });
     }
-    if (!this.room || Date.now() - this.room.createdAt > 15 * 60 * 1000)
+    if (!this.room || (Date.now() - this.room.createdAt > 15 * 60 * 1000 && !activeSurvival(this.room)))
       return json({ error: 'This clearing expired. Host a new room.' }, 404);
     if (this.sockets.size >= 4)
       return json({ error: 'This clearing is full.' }, 409);
@@ -207,6 +216,10 @@ export class Lobby {
   }
 
   async alarm() {
+    if (activeSurvival(this.room)) {
+      await this.ctx.storage.setAlarm(Date.now() + 15 * 60 * 1000);
+      return;
+    }
     clearInterval(this.timer);
     for (const socket of this.sockets.keys())
       socket.close(1001, 'This clearing expired. Host a fresh room.');

@@ -19,7 +19,12 @@ export const RULES = Object.freeze({
   playerRadius: 0.32,
   powerupChance: 0.1,
   effectDuration: 6,
+  survivalQuota: 5,
+  deliveryRadius: 3,
 });
+
+export const GAME_MODES = ['arcade', 'survival'];
+export const treeBase = id => ({ x: id === 0 ? -2 : RULES.width + 2, z: RULES.depth / 2 });
 
 export const POWERUPS = [
   'acorn-rain',
@@ -131,6 +136,9 @@ function newPlayer(id) {
     dig: null,
     facing: 0,
     buried: 0,
+    delivered: 0,
+    eliminated: false,
+    eliminatedRound: null,
     effect: null,
     effectUntil: 0,
   };
@@ -138,12 +146,17 @@ function newPlayer(id) {
 
 /** Deterministic, rendering-independent rules for two local players. All times are seconds. */
 export class Game {
-  constructor({ random = Math.random } = {}) {
+  constructor({ random = Math.random, mode = 'arcade' } = {}) {
     this.random = random;
-    this.reset();
+    this.reset(mode);
   }
 
-  reset() {
+  reset(mode = this.mode) {
+    if (!GAME_MODES.includes(mode)) throw new Error('Choose Arcade or Survival.');
+    this.mode = mode;
+    this.matchEnding = false;
+    this.survivalWinner = null;
+    this.roundDropInterval = RULES.dropInterval;
     this.phase = 'ready';
     this.elapsed = 0;
     this.round = 1;
@@ -178,6 +191,7 @@ export class Game {
     return (this.round - 1) * RULES.duration + this.elapsed;
   }
   get winner() {
+    if (this.mode === 'survival') return this.survivalWinner;
     return this.scores[0] === this.scores[1]
       ? null
       : this.scores[0] > this.scores[1]
@@ -189,7 +203,7 @@ export class Game {
     if (!prepared) this.reset();
     this.phase = 'playing';
     this.dropAcorn();
-    this.nextDrop = RULES.dropInterval;
+    this.nextDrop = this.roundDropInterval;
   }
 
   pause() {
@@ -260,7 +274,7 @@ export class Game {
   requestDig(id) {
     if (this.phase !== 'playing') return false;
     const player = this.players[id];
-    if (!player || player.dig) return false;
+    if (!player || player.dig || player.eliminated) return false;
     const cell = cellAt(player.x, player.z);
     const key = cellKey(cell);
     if (this.players.some((p) => p.dig?.key === key)) {
@@ -316,10 +330,11 @@ export class Game {
       this.elapsed + 1e-8 >= this.nextDrop
     ) {
       this.dropAcorn();
-      this.nextDrop += RULES.dropInterval;
+      this.nextDrop += this.roundDropInterval;
     }
 
     for (const player of this.players) {
+      if (player.eliminated) continue;
       if (player.effect && this.matchElapsed >= player.effectUntil)
         player.effect = null;
       let { x = 0, z = 0 } = inputs[player.id] ?? {};
@@ -386,6 +401,7 @@ export class Game {
       const eligible = this.players.filter(
         (p) =>
           !p.carrying &&
+          !p.eliminated &&
           !p.dig &&
           Math.hypot(p.x - acorn.x, p.z - acorn.z) <= RULES.pickupRadius,
       );
@@ -407,9 +423,32 @@ export class Game {
       this.events.push({ type: 'pickup', player: player.id, acorn: acorn.id });
     }
 
+    if (this.mode === 'survival') {
+      for (const player of this.players) {
+        const base = treeBase(player.id);
+        if (!player.eliminated && player.carrying && !player.dig && player.delivered < RULES.survivalQuota &&
+          Math.hypot(player.x - base.x, player.z - base.z) <= RULES.deliveryRadius) {
+          player.carrying = false;
+          player.delivered++;
+          this.events.push({ type: 'deliver', player: player.id, delivered: player.delivered });
+        }
+      }
+    }
+
     if (this.elapsed >= RULES.duration - 1e-8) {
       this.elapsed = RULES.duration;
-      this.roundResults.push({ round: this.round, scores: [...this.scores] });
+      const deliveries = this.players.map(player => player.delivered);
+      if (this.mode === 'survival') for (const player of this.players) {
+        if (!player.eliminated && player.delivered < RULES.survivalQuota) {
+          player.eliminated = true;
+          player.eliminatedRound = this.round;
+          player.effect = null;
+          player.effectUntil = 0;
+          this.events.push({type:'eliminate', player:player.id, round:this.round});
+        }
+      }
+      this.roundResults.push({ round: this.round, scores: [...this.scores],
+        ...(this.mode === 'survival' ? { deliveries, eliminated:this.players.map(player => player.eliminated) } : {}) });
       this.acorns = [];
       for (const player of this.players) {
         // Retain the last public position so every client can animate the return,
@@ -419,7 +458,11 @@ export class Game {
         player.vx = 0;
         player.vz = 0;
       }
-      const final = this.round === RULES.rounds;
+      const final = this.mode === 'survival' ? this.players.every(player => player.eliminated) : this.round === RULES.rounds;
+      this.matchEnding = final;
+      if (this.mode === 'survival' && final)
+        this.survivalWinner = this.players[0].eliminatedRound === this.players[1].eliminatedRound ? null
+          : this.players[0].eliminatedRound > this.players[1].eliminatedRound ? 0 : 1;
       this.phase = 'intermission';
       this.intermissionRemaining = final ? RULES.ending : RULES.intermission;
       if (final) {
@@ -508,15 +551,16 @@ export class Game {
   nextRound() {
     if (this.phase !== 'intermission') return;
     this.intermissionRemaining = 0;
-    if (this.round === RULES.rounds) {
+    if (this.matchEnding) {
       this.phase = 'finished';
       this.events.push({ type: 'finish', scores: [...this.scores], winner: this.winner });
       return;
     }
     this.round++;
-    for (const player of this.players) Object.assign(player, playerStart(player.id));
+    this.roundDropInterval = RULES.dropInterval + (this.mode === 'survival' ? this.round - 1 : 0);
+    for (const player of this.players) Object.assign(player, playerStart(player.id), { delivered: 0 });
     this.elapsed = 0;
-    this.nextDrop = RULES.dropInterval;
+    this.nextDrop = this.roundDropInterval;
     this.phase = 'playing';
     this.events.push({ type: 'roundStart', round: this.round });
     this.dropAcorn();
@@ -525,12 +569,18 @@ export class Game {
   // Hidden cell coordinates, ownership, reservations, and RNG never leave the authority.
   snapshot() {
     return {
+      mode: this.mode,
+      matchEnding: this.matchEnding,
+      survivalWinner: this.survivalWinner,
+      roundDropInterval: this.roundDropInterval,
       phase: this.phase,
       elapsed: this.elapsed,
       round: this.round,
       roundResults: this.roundResults.map((result) => ({
         round: result.round,
         scores: [...result.scores],
+        ...(result.deliveries ? { deliveries: [...result.deliveries] } : {}),
+        ...(result.eliminated ? { eliminated: [...result.eliminated] } : {}),
       })),
       intermissionRemaining: this.intermissionRemaining,
       nextDrop: this.nextDrop,
@@ -541,13 +591,16 @@ export class Game {
       stumps: this.stumps.map((stump) => ({ ...stump })),
       acorns: this.acorns.map((a) => ({ ...a })),
       players: this.players.map(
-        ({ id, x, z, vx, vz, carrying, facing, effect, effectUntil, dig }) => ({
+        ({ id, x, z, vx, vz, carrying, facing, effect, effectUntil, dig, delivered, eliminated, eliminatedRound }) => ({
           id,
           x,
           z,
           vx,
           vz,
           carrying,
+          delivered,
+          eliminated,
+          eliminatedRound,
           facing,
           effect,
           effectUntil,

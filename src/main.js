@@ -5,11 +5,16 @@ import { WoodlandAudio } from './audio.js';
 import { OnlineSession, lobbyBase, defaultLobby } from './online.js';
 import { PlayerBadges, badgeIcon } from './badges.js';
 import { roundTransition } from './round-transition.js';
+import { SquirrelAI } from './ai.js';
 
 const $ = (id) => document.getElementById(id);
 const arrowIcon =
   '<svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 15 15 5M5 5h10v10"/></svg>';
 const game = new Game();
+const opponent = new SquirrelAI(1);
+let selectedMode = 'arcade';
+let matchKind = 'local';
+let lobbyAttempt = 0;
 const audio = new WoodlandAudio();
 const keys = new Set();
 // Held controls survive clearInputs(), so repeat events cannot scroll the page
@@ -51,6 +56,11 @@ let lastCountdownNumber = 0;
 let helpPreviousPhase = null;
 let previousScores = [0, 0];
 let pendingRestart = false;
+const arcadeHelp = {
+  stash: $('stash-instructions').innerHTML,
+  note: document.querySelector('.help-note').textContent,
+};
+let helpMode = null;
 
 try {
   forest = new ForestScene($('game-canvas'), game);
@@ -76,6 +86,52 @@ function showMessage(text) {
   $('connection-status').textContent = text;
 }
 
+function showGame() {
+  $('main-menu').hidden = true;
+  $('match-view').hidden = false;
+  $('menu-button').hidden = false;
+  forest?.resize();
+}
+
+function openMenu() {
+  resetToLocal();
+  $('main-menu').hidden = false;
+  $('match-view').hidden = true;
+  $('menu-button').hidden = true;
+  $('game-mode-options').hidden = false;
+  $('match-options').hidden = true;
+  $('menu-title').innerHTML = 'Small paws.<br><em>Big choices.</em>';
+  $('menu-description').textContent = 'Choose your way into the clearing.';
+  document.querySelector('[data-game-mode="arcade"]').focus({preventScroll:true});
+}
+
+for (const button of document.querySelectorAll('[data-game-mode]'))
+  button.addEventListener('click', () => {
+    selectedMode = button.dataset.gameMode;
+    game.reset(selectedMode);
+    syncUI();
+    $('game-mode-options').hidden = true;
+    $('match-options').hidden = false;
+    $('menu-title').innerHTML = `${selectedMode === 'survival' ? 'Survival' : 'Arcade'}.<br><em>Who’s playing?</em>`;
+    $('menu-description').textContent = selectedMode === 'survival'
+      ? 'Deliver five acorns to your own tree each round. Stay in as long as you can.'
+      : 'Three one-minute rounds. Most buried acorns wins.';
+    document.querySelector('[data-match="local"]').focus({preventScroll:true});
+  });
+function chooseMatch(kind) {
+  resetToLocal();
+  matchKind = kind;
+  opponent.reset();
+  showGame();
+  syncUI();
+  if (kind === 'online') $('online-mode').click();
+  else $('start-button').focus({preventScroll:true});
+}
+for (const button of document.querySelectorAll('[data-match]'))
+  button.addEventListener('click', () => chooseMatch(button.dataset.match));
+$('menu-back').addEventListener('click', openMenu);
+$('menu-button').addEventListener('click', openMenu);
+
 function beginMatch() {
   if (!forest) return;
   if (online) {
@@ -89,7 +145,8 @@ function beginMatch() {
   helpPreviousPhase = null;
   pendingRestart = false;
   clearInputs();
-  game.reset();
+  game.reset(selectedMode);
+  opponent.reset();
   game.phase = 'countdown';
   forest.reset();
   badges.clear();
@@ -155,6 +212,19 @@ function showResults() {
       return row;
     }),
   );
+  if (game.mode === 'survival') {
+    $('results-title').innerHTML = winner === null ? 'An equally<br><em>brave run.</em>' : `${name} lasted<br><em>the longest.</em>`;
+    $('results-subtitle').textContent = 'The run ends when both squirrels are out. A longer survival wins.';
+    for (const id of [0,1]) {
+      $(id ? 'result-grey' : 'result-red').textContent = Math.max(0, game.players[id].eliminatedRound - 1);
+    }
+    $('results-detail').textContent = `${game.round} rounds attempted. Totals above show rounds survived. ${game.drops + game.bonusDrops} acorns dropped.`;
+    $('results-rounds').replaceChildren(...game.roundResults.map(result => {
+      const row = document.createElement('div');
+      row.innerHTML = `<span>Round ${result.round}</span><strong>Red ${result.deliveries[0]}/5${result.eliminated[0] ? ' · out' : ''} <span>—</span> Ash ${result.deliveries[1]}/5${result.eliminated[1] ? ' · out' : ''}</strong>`;
+      return row;
+    }));
+  }
   $('results-dialog').showModal();
   audio.play('finish');
 }
@@ -265,7 +335,7 @@ window.addEventListener('keydown', (event) => {
       if (event.code === 'Space' || event.code === 'Enter') onlineDig = true;
     } else {
       if (event.code === 'Space') game.requestDig(0);
-      if (event.code === 'Enter') game.requestDig(1);
+      if (event.code === 'Enter' && matchKind !== 'ai') game.requestDig(1);
     }
   }
 });
@@ -302,7 +372,7 @@ for (const button of document.querySelectorAll('[data-bury]'))
     event.preventDefault();
     if (!anyDialogOpen()) {
       if (online) onlineDig = true;
-      else game.requestDig(Number(button.dataset.bury));
+      else if (matchKind !== 'ai' || button.dataset.bury === '0') game.requestDig(Number(button.dataset.bury));
     }
   });
 
@@ -323,8 +393,9 @@ function handleEvents(events = game.drainEvents()) {
   for (const event of events) {
     forest?.onEvent(event);
     badges.onEvent(event);
-    if (['pickup', 'bury', 'drop', 'unearth'].includes(event.type))
-      audio.play(event.type === 'unearth' ? 'pickup' : event.type);
+    if (!online && matchKind === 'ai') opponent.observe(event, game);
+    if (['pickup', 'bury', 'drop', 'unearth', 'deliver'].includes(event.type))
+      audio.play(event.type === 'unearth' ? 'pickup' : event.type === 'deliver' ? 'bury' : event.type);
     if (event.type === 'powerup')
       audio.play(
         ['slowdown', 'hungry-crow'].includes(event.kind) ? 'drop' : 'bury',
@@ -338,12 +409,17 @@ function handleEvents(events = game.drainEvents()) {
 }
 
 function resetToLocal() {
+  lobbyAttempt++;
+  $('host-room').disabled = false;
+  $('join-room').disabled = false;
   online?.leave();
   online = null;
   remoteState = null;
-  forest.networked = false;
-  game.reset();
-  forest.reset();
+  matchKind = 'local';
+  if (forest) forest.networked = false;
+  game.reset(selectedMode);
+  opponent.reset();
+  forest?.reset();
   clearInputs();
   for (const dialog of dialogs) if (dialog.open) dialog.close();
   $('room-bar').hidden = true;
@@ -356,12 +432,15 @@ function resetToLocal() {
   const address = new URL(location.href);
   address.searchParams.delete('room');
   address.searchParams.delete('lobby');
+  address.searchParams.delete('mode');
   history.replaceState(null, '', address);
   syncUI();
 }
 function connectRoom(session) {
   online?.leave();
   online = session;
+  matchKind = 'online';
+  showGame();
   const address = new URL(location.href);
   address.searchParams.set('room', session.code);
   if (session.base !== location.origin)
@@ -369,7 +448,7 @@ function connectRoom(session) {
   history.replaceState(null, '', address);
   remoteState = null;
   forest.networked = true;
-  game.reset();
+  game.reset(selectedMode);
   forest.reset();
   clearInputs();
   $('lobby-dialog').close();
@@ -394,6 +473,7 @@ function connectRoom(session) {
     }
     remoteState = state;
     Object.assign(game, state);
+    selectedMode = state.mode;
     handleEvents(events);
     if (
       state.phase === 'finished' &&
@@ -404,6 +484,9 @@ function connectRoom(session) {
     if (state.phase === 'paused')
       $('connection-status').textContent =
         'Round paused · Waiting for your friend to reconnect…';
+    else if (state.mode === 'survival' && state.phase !== 'finished' && state.players.some(player => player.eliminated))
+      $('connection-status').textContent = state.players[session.slot]?.eliminated
+        ? 'You’re out · Watch the remaining squirrel’s run.' : 'Survival continues · Bring five acorns home.';
     else
       $('connection-status').textContent = state.seats.every((s) => s.connected)
         ? `Online · You’re ${session.slot === 0 ? 'Red' : 'Ash'}`
@@ -423,6 +506,8 @@ function connectRoom(session) {
   session.connect();
 }
 async function enterLobby(host) {
+  const attempt = ++lobbyAttempt;
+  const mode = selectedMode;
   $('lobby-error').textContent = '';
   $('host-room').disabled = true;
   $('join-room').disabled = true;
@@ -430,15 +515,19 @@ async function enterLobby(host) {
     const base = lobbyBase($('lobby-server').value.trim());
     localStorage.setItem('scatterhoard-lobby', base);
     const session = host
-      ? await OnlineSession.host(base)
+      ? await OnlineSession.host(base, mode)
       : OnlineSession.join(base, $('room-code').value);
+    if (attempt !== lobbyAttempt || !$('lobby-dialog').open) { session.leave(); return; }
     connectRoom(session);
   } catch (error) {
+    if (attempt !== lobbyAttempt) return;
     $('lobby-error').textContent = error.message;
     $('lobby-settings').open = true;
   } finally {
-    $('host-room').disabled = false;
-    $('join-room').disabled = false;
+    if (attempt === lobbyAttempt) {
+      $('host-room').disabled = false;
+      $('join-room').disabled = false;
+    }
   }
 }
 $('online-mode').addEventListener('click', () => {
@@ -451,13 +540,20 @@ $('online-mode').addEventListener('click', () => {
   }
 });
 $('lobby-dialog').addEventListener('close', () => {
+  if (!online) {
+    lobbyAttempt++;
+    $('host-room').disabled = false;
+    $('join-room').disabled = false;
+  }
+  if (!online && matchKind === 'online' && game.phase === 'ready') { openMenu(); return; }
   if (!online && game.phase === 'paused') game.resume();
   else if (!online && game.phase === 'paused-countdown')
     game.phase = 'countdown';
 });
 $('local-mode').addEventListener('click', () => {
-  if (online) resetToLocal();
+  if (online || matchKind !== 'local') chooseMatch('local');
 });
+$('ai-mode').addEventListener('click', () => chooseMatch('ai'));
 $('leave-room').addEventListener('click', resetToLocal);
 $('host-room').addEventListener('click', () => enterLobby(true));
 $('join-form').addEventListener('submit', (event) => {
@@ -468,6 +564,7 @@ $('copy-invite').addEventListener('click', async () => {
   const invite = new URL(location.href);
   invite.search = '';
   invite.searchParams.set('room', online.code);
+  invite.searchParams.set('mode', game.mode);
   if (online.base !== location.origin)
     invite.searchParams.set('lobby', online.base);
   try {
@@ -481,12 +578,17 @@ $('copy-invite').addEventListener('click', async () => {
   }
 });
 if (sessionQuery.has('room')) {
+  selectedMode = sessionQuery.get('mode') === 'survival' ? 'survival' : 'arcade';
+  game.reset(selectedMode);
+  matchKind = 'online';
+  showGame();
   $('room-code').value = sessionQuery.get('room').toUpperCase().slice(0, 6);
   $('lobby-dialog').showModal();
 }
 
 function syncUI() {
   const phase = game.phase;
+  const survival = game.mode === 'survival';
   const mySeat = online && remoteState ? remoteState.seats[online.slot] : null;
   const running = [
     'playing',
@@ -520,7 +622,7 @@ function syncUI() {
               ? 'The scramble starts soon'
               : 'Match paused';
   const between = phase === 'intermission' || (phase === 'paused' && game.resumePhase === 'intermission');
-  const transition = between ? roundTransition(game.intermissionRemaining, game.round === RULES.rounds) : null;
+  const transition = between ? roundTransition(game.intermissionRemaining, game.matchEnding) : null;
   $('countdown-overlay').hidden = ![
     'countdown',
     'paused-countdown',
@@ -596,12 +698,13 @@ function syncUI() {
   for (const id of [0, 1]) {
     const name = id === 0 ? 'red' : 'grey';
     const score = $(name + '-score');
-    score.textContent = game.scores[id];
-    if (previousScores[id] !== game.scores[id]) {
+    const scoreValue = survival ? game.players[id].delivered : game.scores[id];
+    score.textContent = scoreValue;
+    if (previousScores[id] !== scoreValue) {
       score.classList.remove('score-bump');
       void score.offsetWidth;
       score.classList.add('score-bump');
-      previousScores[id] = game.scores[id];
+      previousScores[id] = scoreValue;
     }
     const player = game.players[id];
     const carry = $(name + '-carry');
@@ -618,6 +721,49 @@ function syncUI() {
         ? 'Acorn in paws'
         : 'Paws empty';
     carry.classList.toggle('loaded', player.carrying);
+    if (survival) {
+      score.textContent = player.eliminated ? 'OUT' : `${player.delivered}/5`;
+      if (player.eliminated) carry.textContent = `Out after round ${player.eliminatedRound}`;
+    }
+    $(name + '-score-label').textContent = survival ? 'DELIVERED' : 'BURIED';
+    const touch = document.querySelector(`.touch-player[data-player="${id}"]`);
+    touch.hidden = (matchKind === 'ai' && id === 1) || player.eliminated;
+  }
+  $('round-progress').hidden = survival;
+  $('survival-help').hidden = !survival;
+  if (helpMode !== game.mode) {
+    $('stash-instructions').innerHTML = survival
+      ? '<strong>Guess. Dig. Recover.</strong> Dig empty-handed to recover any buried acorn, including your own. Bring it to your tree while you still need deliveries, or rebury it as a reserve. Stashes do not earn points in Survival.'
+      : arcadeHelp.stash;
+    document.querySelector('.help-note').textContent = survival
+      ? 'The same board carries across endless one-minute rounds. Five deliveries keeps a squirrel in the game; missing the goal eliminates it. The other squirrel continues alone. More rounds survived wins; elimination in the same round is a draw. Both players ready up for a new online run.'
+      : arcadeHelp.note;
+    helpMode = game.mode;
+  }
+  $('ash-seat-label').textContent = matchKind === 'ai' ? 'AI OPPONENT' : 'PLAYER 02';
+  document.querySelector('.grey-controls .control-player strong').textContent = matchKind === 'ai' ? 'Ash is the AI.' : 'You’re Ash.';
+  document.querySelector('.grey-controls .control-inputs').hidden = matchKind === 'ai';
+  $('ai-controls-note').hidden = matchKind !== 'ai';
+  for (const [kind, id] of [['local','local-mode'], ['ai','ai-mode'], ['online','online-mode']]) {
+    $(id).classList.toggle('active', matchKind === kind);
+    $(id).setAttribute('aria-pressed', String(matchKind === kind));
+  }
+  if (!online) $('connection-status').textContent = matchKind === 'ai' ? 'You’re Red. Ash is the computer.' : 'Two squirrels. One screen.';
+  $('lobby-mode-description').textContent = `Host ${selectedMode === 'survival' ? 'Survival' : 'Arcade'} and share its six-character code, or join a friend’s room. You’re Red; your friend plays Ash. The host chooses the game mode.`;
+  document.querySelectorAll('.round-facts b')[1].textContent = survival ? '∞' : '03';
+  document.querySelector('.quick-rules p').textContent = survival
+    ? 'Bring five acorns to the ring at your own tree each round. Bury extras for future rounds. Miss the goal and you’re out; the other squirrel keeps going.'
+    : 'Bury acorns on your half and remember your hiding spots. Dig empty-handed to steal any stash — or uncover a surprise.';
+  if (survival) {
+    $('round-label').textContent = finished ? 'SURVIVAL · RUN COMPLETE' : `SURVIVAL · ROUND ${game.round}`;
+    $('countdown-label').textContent = `ROUND ${between ? game.round + 1 : 1} · BRING FIVE ACORNS HOME`;
+    $('clock-caption').textContent = phase === 'playing' ? `Drops every ${game.roundDropInterval}s · ${game.drops} dropped${game.bonusDrops ? ` + ${game.bonusDrops} bonus` : ''}`
+      : between ? (game.matchEnding ? 'Both squirrels are out. Tails high.' : 'The survivors return at dawn.')
+      : finished ? 'The winter got the last word.' : phase === 'ready' ? 'Endless one-minute rounds' : $('clock-caption').textContent;
+    $('toolbar-title').textContent = finished ? 'A brave little run.' : 'Bring five home. Bury tomorrow’s reserve.';
+    $('toolbar-subtitle').textContent = `Five deliveries per surviving squirrel. Drops every ${game.roundDropInterval} seconds this round.`;
+    if (phase !== 'playing') $('drop-label').innerHTML = `<span class="acorn-mini" aria-hidden="true"></span> AN ACORN EVERY ${game.roundDropInterval} SECONDS`;
+    if (pendingRestart) $('pause-dialog').querySelector('p').textContent = 'Start a new Survival run with an empty board, or keep playing.';
   }
 }
 
@@ -651,19 +797,27 @@ function frame(now) {
       clearInputs();
       audio.play('go');
     }
-  } else game.update(dt, inputs());
+  } else {
+    const controls = inputs();
+    if (matchKind === 'ai') {
+      const action = opponent.update(game.snapshot(), dt);
+      controls[1] = action;
+      if (action.dig && !anyDialogOpen()) game.requestDig(1);
+    }
+    game.update(dt, controls);
+  }
   handleEvents();
   const between = game.phase === 'intermission' ||
     (game.phase === 'paused' && game.resumePhase === 'intermission');
   const transition = game.phase === 'finished' ? roundTransition(0, true)
-    : between ? roundTransition(game.intermissionRemaining, game.round === RULES.rounds) : null;
+    : between ? roundTransition(game.intermissionRemaining, game.matchEnding) : null;
   $('round-fade').style.opacity = String(transition?.opacity ?? 0);
   $('round-fade').dataset.stage = transition?.stage ?? '';
   if (now >= nextUI) {
     syncUI();
     nextUI = now + 80;
   }
-  if (forest) {
+  if (forest && !$('match-view').hidden) {
     game.countdown = online ? remoteState?.countdown : countdown;
     forest.render(now / 1000, dt);
     badges.render(forest, game, dt);

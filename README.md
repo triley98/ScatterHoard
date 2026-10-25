@@ -1,21 +1,32 @@
 # ScatterHoard
 
-Two squirrels, a hidden stash, and three busy rounds. A browser game with smooth movement across an unchanged 40 × 15 clearing with a hidden 30 × 10 grid viewed at 45 degrees. Red starts on the left; Ash, the grey squirrel, starts on the right.
+Two squirrels, a hidden stash, and a choice of Arcade rivalry or endless Survival. A browser game with smooth movement across an unchanged 40 × 15 clearing with a hidden 30 × 10 grid viewed at 45 degrees. Red starts on the left; Ash, the grey squirrel, starts on the right.
 
-Play together on one keyboard, or host an online room on Cloudflare and share its six-character code. Online matches use a server-authoritative Durable Object and WebSockets, with a maximum of two players. Hidden burial locations never appear in client snapshots or events.
+Play together on one keyboard, challenge a local AI opponent, or host an online room on Cloudflare and share its six-character code. Online matches use a server-authoritative Durable Object and WebSockets, with a maximum of two players. Hidden burial locations never appear in client snapshots or events.
 
 ## Play
 
 The static website is published through GitHub Pages at **https://triley98.github.io/ScatterHoard/**. The online lobby is deployed at **https://scatterhoard.scatterhoard.workers.dev**. GitHub Pages connects to it automatically. The Cloudflare Worker serves the entire website and lobby at a single public HTTPS URL, so that address supports both modes automatically.
 
-- **Same keyboard:** click **Let’s forage**. Red moves with WASD and digs with Space; Ash moves with arrow keys and digs with Enter.
+Choose **Arcade** or **Survival** on the main menu, then choose local human vs human, human vs AI, or online human vs human. The original Arcade rules remain unchanged.
+
+- **Same keyboard:** choose local human vs human, then click **Let’s forage**. Red moves with WASD and digs with Space; Ash moves with arrow keys and digs with Enter.
+- **Human vs AI:** you control Red; the computer controls Ash. It collects, buries, delivers, and searches using visible acorns and memory of observed digs. It cannot inspect hidden stashes.
 - **Online:** click **Online with a friend → Host a clearing**, then copy the invite link. Your friend opens it and chooses **Join clearing**. Host is Red, guest is Ash. Both choose **Ready to forage** to start. Online, either movement key set and either dig key control only your assigned squirrel.
 - Touch devices get directional and Dig buttons.
 - A WebGL-capable browser is required. Sound is optional and starts muted.
 
 To use a different Cloudflare lobby, expand **Lobby server** and enter the Worker's public HTTPS address. Invite links carry this public address automatically. For a default shared endpoint, set the GitHub repository variable `SCATTERHOARD_LOBBY_URL` to the deployed Worker URL; the Pages workflow builds it as `VITE_LOBBY_URL`. That URL is public configuration, never a secret.
 
-## Rules
+## Survival
+
+Survival uses endless 60-second rounds. Each active squirrel must carry **five acorns back to the ring at the base of its starting tree** before the round ends. Delivery is automatic inside your own ring and consumes the acorn. Once you reach five, extra carried acorns stay in your paws so you can bury them as reserves. Buried acorns remain in their exact cells across rounds and can be recovered by either player; they do not earn points in Survival. Loose and carried acorns still clear between rounds.
+
+The first round drops one regular acorn immediately and then every **five seconds**. Each subsequent round increases the interval by one second: 6s, 7s, 8s, and so on. Successful squirrels reset to zero deliveries for the next round. A squirrel below five is eliminated; the other keeps playing alone. Eliminated squirrels cannot move, dig, collect, or deliver. The run ends only when both are out. More rounds survived wins; elimination in the same round is a draw. The existing drops-per-side limit, powerups, pickup area, scenery, pause behavior, and return-to-tree transitions apply. The final scorecard stays over black.
+
+All three match formats support both game modes. Online rooms lock in the host’s selected game mode and synchronize quota, interval, elimination, and round state. Losing an eliminated opponent’s connection does not pause the survivor, and a solo survivor can reconnect independently. Active Survival rooms renew their lifetime so a long run can continue beyond fifteen minutes.
+
+## Arcade rules
 
 - Movement is continuous and independent of the invisible 30-column, 10-row grid. There are no visible grid lines, cell outlines, dirt piles, sprouts, or other burial markers. Remember where the squirrels dig. Fixed moss mottling, fine grass grain, leaf litter, and grass clumps texture the surface without responding to digging. Each match randomly places two solid rocks with 3 × 3 world-unit footprints and two tree stumps with 2 × 2 world-unit footprints per half, mirrored across the center. Both types share the same randomized placement area, with at least two world units of edge-to-edge clearance between all obstacles and clear starting routes. Acorns never spawn inside rocks or stumps.
 - Each match has **three 60-second rounds**, with a three-second countdown before the match. Between rounds, squirrels return from their last position and climb their end trees for three seconds, the clearing fades to black over three seconds, and daylight returns over three seconds before the next three-second countdown and tree descent. These twelve-second breaks share the authoritative clock online and freeze when the match pauses. The final round uses the same return and three-second fade to black, then opens the scorecard over the black clearing without restoring daylight. Buried acorns remain in their exact original cells and can be dug up in any later round. Scores, rocks, stumps, and any remaining speed effect also carry between rounds. At each round’s end, loose and carried acorns are removed; players return to their starting positions when the next round begins. During each three-second countdown, squirrels climb headfirst on all four paws down the double-size end trees, then move onto the board. The forest border contains trees, mushroom clusters, and bushes, including five tall trees with raised lower branches just behind the board, small foreground trees, and an outer band of varied trees and bushes that fills the distant edges. Leaves fall and drift in the wind; this decoration pauses with the game and respects reduced-motion preferences. The sun moves from left to right during each round, starting with the original daylight and gradually dimming during the final 15 seconds while retaining brighter ambient and direct light for visibility. Each new round restores the starting light. Rocks are single natural boulders without pedestals. One acorn drops at the start of each round, then every five seconds through second 55: **12 regular drops per round, 36 per match**, plus powerup bonuses. Regular drops never land on the same half more than twice in a row, including across round boundaries. Acorn rain still awards three bonus acorns to the finder’s half. The automatic pickup radius is 25% larger (0.9 world units). The timer resets each round; the board does not. The winner is decided by the final board after round three, rather than adding the three score snapshots together.
@@ -36,7 +47,7 @@ To use a different Cloudflare lobby, expand **Lobby server** and enter the Worke
 
 Location determines the score: columns 1–15 score for Red and 16–30 for Ash, regardless of who planted the acorn. Most buried after the third round wins; equal scores draw. The results screen shows the cumulative board score at each round’s end. Only a new match clears the board.
 
-Space and Enter stay captured through round transitions and key release, so holding a dig key cannot scroll the page or activate the results dialog. Focused menu buttons and lobby fields retain their usual keyboard behavior. Local play pauses with Esc, Pause, opening help, or leaving the tab. Online menus and background tabs do not pause the other player. A network disconnection pauses the shared match for up to 30 seconds while that player's browser reconnects with its private session ticket. After that, the round resets and both players can ready up again. Rooms expire after 15 minutes. Deploying a new Worker or a platform restart can reset an active match; rooms are intended for short games, not permanent storage.
+Space and Enter stay captured through round transitions and key release, so holding a dig key cannot scroll the page or activate the results dialog. Focused menu buttons and lobby fields retain their usual keyboard behavior. Local play pauses with Esc, Pause, opening help, or leaving the tab. Online menus and background tabs do not pause the other player. A network disconnection pauses the shared match for up to 30 seconds while that player's browser reconnects with its private session ticket. After that, the round resets and both players can ready up again. Arcade and inactive rooms expire after 15 minutes; active Survival runs renew their room lifetime. Deploying a new Worker or a platform restart can reset an active match; rooms are intended for short games, not permanent storage.
 
 ## Reversible hopping experiment
 
@@ -86,6 +97,7 @@ The separate **Deploy ScatterHoard website** workflow tests, builds, and publish
 
 ## Project layout
 
+- `src/ai.js` — local public-observation opponent with pathfinding and remembered stashes.
 - `src/game.js` — shared authoritative rules; private burial map and safe public snapshots.
 - `src/scene.js` — unmarked clearing, squirrels, dense forest, and crow swoops.
 - `src/main.js` — local/online three-round lifecycle, input, lobby interface, and HUD.

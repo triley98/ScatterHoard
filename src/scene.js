@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RULES, playerStart } from './game.js';
+import { RULES, playerStart, treeBase } from './game.js';
 import { makeTurfTexture } from './turf.js';
 import { poseSquirrel } from './squirrel-motion.js';
 import { roundLighting, WindLeaves } from './atmosphere.js';
@@ -266,6 +266,16 @@ export class ForestScene {
     this.scene.add(this.rockGroup);
     this.rockLayout = '';
     this.makeEndTrees();
+    this.deliveryRings = [0,1].map(id => {
+      const ring = new THREE.Mesh(new THREE.RingGeometry(RULES.deliveryRadius - 0.14, RULES.deliveryRadius, 64),
+        new THREE.MeshBasicMaterial({color:id ? 0xe0e7d5 : 0xe0a06c, side:THREE.DoubleSide, transparent:true, opacity:0.85, depthWrite:false}));
+      const base = treeBase(id);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(base.x - RULES.width / 2, 0.07, base.z - RULES.depth / 2);
+      ring.name = `delivery-zone-${id}`;
+      this.scene.add(ring);
+      return ring;
+    });
     this.makeBoardTexture();
     this.windLeaves = new WindLeaves(this.scene);
     this.squirrels = [makeSquirrel(0), makeSquirrel(1)];
@@ -548,7 +558,7 @@ export class ForestScene {
     const animate = !this.reducedMotion && !['paused', 'paused-countdown'].includes(game.phase);
     const between = game.phase === 'intermission' ||
       (game.phase === 'paused' && game.resumePhase === 'intermission');
-    const transition = between ? roundTransition(game.intermissionRemaining, game.round === RULES.rounds) : null;
+    const transition = between ? roundTransition(game.intermissionRemaining, game.matchEnding) : null;
     const light = roundLighting(transition?.daylight ? 0 : game.elapsed);
     this.sun.position.set(...light.position);
     this.sun.intensity = light.sunIntensity;
@@ -556,6 +566,10 @@ export class ForestScene {
     this.ambient.intensity = light.ambientIntensity;
     this.windLeaves.update(dt, { active: animate, reducedMotion: this.reducedMotion });
     this.demoAcorns.visible = game.phase === 'ready';
+    this.deliveryRings.forEach((ring,id) => {
+      ring.visible = game.mode === 'survival' && !game.players[id].eliminated && game.phase !== 'finished';
+      ring.material.color.set(game.players[id].delivered >= RULES.survivalQuota ? 0x9fc475 : id ? 0xe0e7d5 : 0xe0a06c);
+    });
     if (animate) {
       this.demoAcorns.children.forEach((acorn, i) => {
         acorn.children[0].position.y = 0.2 + Math.sin(time * 1.8 + i) * 0.055;
@@ -582,7 +596,9 @@ export class ForestScene {
       const intro = game.phase === 'countdown' || game.phase === 'paused-countdown' ||
         (game.phase === 'paused' && game.resumePhase === 'countdown') ||
         transition?.stage === 'countdown' ||
-        (transition?.stage === 'fade-in' && game.round < RULES.rounds);
+        (transition?.stage === 'fade-in' && !game.matchEnding);
+      squirrel.root.visible = !player.eliminated ||
+        (between && player.eliminatedRound === game.round && !intro);
       let scripted = false, scriptedMoving = false;
       let climb = 0;
       let climbPitch = 0;

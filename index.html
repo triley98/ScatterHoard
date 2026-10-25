@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f5f3eb" />
     <meta
       name="description"
-      content="Two squirrels. One minute. A friendly multiplayer scramble to collect and bury acorns."
+      content="Arcade rivalry or endless Survival. Play with a friend, challenge the AI, or meet online."
     />
     <title>ScatterHoard — A little woodland rivalry</title>
     <link rel="icon" type="image/svg+xml" href="/acorn.svg" />
@@ -23,6 +23,7 @@
         <div class="header-right">
           <span class="local-badge"
             ><span></span> A LITTLE WOODLAND RIVALRY</span
+          ><button class="text-button" id="menu-button" hidden>Main menu</button
           ><button class="text-button" id="help-button">
             <span class="help-icon">?</span> How to play</button
           ><button
@@ -36,6 +37,32 @@
       </header>
 
       <main>
+        <section id="main-menu" class="main-menu" aria-labelledby="menu-title">
+          <span class="eyebrow">A LITTLE WOODLAND RIVALRY</span>
+          <h1 id="menu-title">Small paws.<br /><em>Big choices.</em></h1>
+          <p id="menu-description">Choose your way into the clearing.</p>
+          <div id="game-mode-options" class="menu-options">
+            <button class="menu-card" data-game-mode="arcade" aria-label="Arcade">
+              <span class="eyebrow">01 · THE ORIGINAL RIVALRY</span><strong>Arcade <span>↗</span></strong>
+              <span>Three rounds to hide, remember, and steal. Most buried acorns wins.</span>
+              <small>3 ROUNDS · 60 SECONDS EACH</small>
+            </button>
+            <button class="menu-card survival-card" data-game-mode="survival" aria-label="Survival">
+              <span class="eyebrow">02 · MAKE EVERY ACORN COUNT</span><strong>Survival <span>↗</span></strong>
+              <span>Bring five acorns home each round. Bury a reserve as the drops grow scarce.</span>
+              <small>ENDLESS ROUNDS · A GROWING CHALLENGE</small>
+            </button>
+          </div>
+          <div id="match-options" hidden>
+            <div class="match-choices">
+              <button class="menu-card" data-match="local" aria-label="Local human vs human"><strong>Share a keyboard <span>↗</span></strong><span>Local human vs human. Red uses WASD; Ash uses the arrows.</span></button>
+              <button class="menu-card" data-match="ai" aria-label="Human vs AI"><strong>Meet your match <span>↗</span></strong><span>Human vs AI. You play Red; the computer plays Ash.</span></button>
+              <button class="menu-card" data-match="online" aria-label="Online human vs human"><strong>A friend afar <span>↗</span></strong><span>Online human vs human. Host a room or join with a code.</span></button>
+            </div>
+            <button id="menu-back" class="text-button">← Back to game modes</button>
+          </div>
+        </section>
+        <div id="match-view" hidden>
         <section class="intro" aria-labelledby="page-title">
           <div>
             <div class="eyebrow">
@@ -60,6 +87,7 @@
               aria-pressed="true"
             >
               Same keyboard</button
+            ><button id="ai-mode" class="mode-button" aria-pressed="false">Human vs AI</button
             ><button id="online-mode" class="mode-button" aria-pressed="false">
               Online with a friend
             </button>
@@ -87,7 +115,7 @@
                 <div class="effect-status" id="red-effect"></div>
               </div>
               <div class="score-count">
-                <strong id="red-score">0</strong><span>BURIED</span>
+                <strong id="red-score">0</strong><span id="red-score-label">BURIED</span>
               </div>
             </div>
             <div class="clock-block">
@@ -117,7 +145,7 @@
             <div class="player-score grey-score">
               <div class="player-avatar grey-avatar" aria-hidden="true"></div>
               <div class="score-name">
-                <span>PLAYER 02</span>
+                <span id="ash-seat-label">PLAYER 02</span>
                 <h2>
                   Ash <span class="player-nickname">The quiet schemer</span>
                 </h2>
@@ -125,7 +153,7 @@
                 <div class="effect-status" id="grey-effect"></div>
               </div>
               <div class="score-count">
-                <strong id="grey-score">0</strong><span>BURIED</span>
+                <strong id="grey-score">0</strong><span id="grey-score-label">BURIED</span>
               </div>
             </div>
           </div>
@@ -256,6 +284,7 @@
               ><kbd class="wide-key">enter ↵</kbd
               ><span class="control-verb">DIG</span>
             </div>
+            <p id="ai-controls-note" class="rule-footnote" hidden>Ash moves, digs, and remembers hiding spots on its own.</p>
           </div>
           <div class="quick-rules">
             <span class="eyebrow">THE SHORT VERSION</span>
@@ -290,6 +319,7 @@
             <button class="touch-bury" data-bury="1">Dig</button>
           </div>
         </div>
+        </div>
       </main>
       <footer>
         <span>A little woodland rivalry.</span
@@ -310,7 +340,7 @@
       </button>
       <span class="eyebrow">A FRIEND IN ANOTHER PATCH</span>
       <h2 id="lobby-title">Far apart.<br /><em>Same forest.</em></h2>
-      <p>
+      <p id="lobby-mode-description">
         Host a clearing and share its six-character code. You’re Red; your
         friend plays Ash.
       </p>
@@ -360,13 +390,14 @@
         ×</button
       ><span class="eyebrow">A FIELD GUIDE FOR SMALL PAWS</span>
       <h2 id="help-title">Make yourself<br /><em>at hoard.</em></h2>
+      <p id="survival-help" hidden>Survival: each squirrel must deliver five acorns to the ring at the base of its starting tree before the 60-second round ends. Deliveries happen automatically while carrying an acorn into your own ring. Bury extras to recover in later rounds. Drops start every five seconds and slow by one second per round. Players who fall short are eliminated. The other squirrel keeps playing alone until it also misses the goal. The player who survives more rounds wins; elimination in the same round is a draw.</p>
       <div class="instructions">
         <div>
           <span>01</span>
           <p>
             <strong>Scurry freely.</strong> Red uses WASD and Space to dig. Ash
             uses arrows and Enter. Online, either set controls your own
-            squirrel.
+            squirrel. Against AI, you control Red.
           </p>
         </div>
         <div>
@@ -379,7 +410,7 @@
         </div>
         <div>
           <span>03</span>
-          <p>
+          <p id="stash-instructions">
             <strong>Guess. Dig. Recover.</strong> Dig with empty paws to search.
             Find any buried acorn, including your own, carry it home, and bury
             it again. Its old patch loses a point as soon as it’s dug up.
