@@ -156,3 +156,40 @@ test('baskets fill, wait for the squirrels, hoist on a pausable clock, disappear
   await page.evaluate(() => { const { game, forest } = window.fixture; game.nextRound(); game.players[1].eliminated = true; game.players[1].eliminatedRound = 1; forest.render(0, 0); });
   expect(await page.evaluate(() => window.fixture.forest.baskets[1].basket.position.y)).toBeGreaterThan(10);
 });
+
+test('Survival baskets stay clear of the descent and disappear when switching to Arcade', async ({ page }, testInfo) => {
+  await fixture(page, 'survival');
+  const descend = await page.evaluate(() => {
+    const {game,forest} = window.fixture;
+    game.phase = 'countdown'; game.countdown = 1.5;
+    forest.render(0, 1/60);
+    return forest.baskets.map((b,id) => ({
+      visible:b.root.visible, basketZ:b.root.position.z,
+      squirrelZ:forest.squirrels[id].root.position.z,
+      xGap:Math.abs(b.root.position.x - forest.squirrels[id].root.position.x),
+    }));
+  });
+  expect(descend.every(b => b.visible && b.basketZ - b.squirrelZ > 1.5 && b.xGap > 0.5)).toBe(true);
+  await page.locator('#arena').screenshot({path:testInfo.outputPath('basket-clear-of-descent.png')});
+  await page.evaluate(() => {
+    const {game,forest} = window.fixture;
+    game.countdown = 1.2; forest.render(0, 1/60);
+  });
+  await page.locator('#arena').screenshot({path:testInfo.outputPath('basket-clear-of-first-steps.png')});
+  const visibility = await page.evaluate(() => {
+    const {game,forest} = window.fixture;
+    const states = [];
+    game.reset('arcade'); forest.render(0, 0);
+    states.push(forest.baskets.every(b => !b.root.visible));
+    game.phase = 'countdown'; game.countdown = 2; forest.render(0, 0);
+    states.push(forest.baskets.every(b => !b.root.visible));
+    game.start(); game.update(60); forest.render(0, 0);
+    states.push(forest.baskets.every(b => !b.root.visible));
+    game.update(4); forest.render(0, 0);
+    states.push(forest.baskets.every(b => !b.root.visible));
+    game.reset('survival'); forest.render(0, 0);
+    states.push(forest.baskets.every(b => b.root.visible));
+    return states;
+  });
+  expect(visibility).toEqual([true,true,true,true,true]);
+});

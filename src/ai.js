@@ -1,4 +1,4 @@
-import { RULES, cellAt, cellKey, overlapsRock } from './game.js';
+import { RULES, cellAt, cellKey, overlapsRock, basketBase } from './game.js';
 import { returnPath } from './round-transition.js';
 
 const center = ({col, row}) => ({
@@ -6,10 +6,16 @@ const center = ({col, row}) => ({
   z: (row + 0.5) * RULES.depth / RULES.gridRows,
 });
 const distance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const MEMORY_ODDS = Object.freeze({
+  opponent: { forgotten: 0.2, uncertain: 0.4 },
+  own: { forgotten: 0.05, uncertain: 0.15 },
+});
 
 /** A local opponent with public observations and memory, never the burial map. */
 export class SquirrelAI {
-  constructor(id = 1) { this.id = id; this.reset(); }
+  constructor(id = 1, { random = Math.random } = {}) {
+    this.id = id; this.random = random; this.reset();
+  }
   reset() {
     this.memory = new Map(); this.goal = null; this.path = [];
     this.thinkIn = 0; this.searchIndex = 0; this.round = 0;
@@ -19,10 +25,45 @@ export class SquirrelAI {
     const player = view.players[event.player];
     if (!player) return;
     const cell = cellAt(player.x, player.z), key = cellKey(cell);
-    if (event.type === 'bury') this.memory.set(key, {...center(cell), player:player.id, territory:Number(player.x >= RULES.half), key});
-    if (event.type === 'unearth' || event.type === 'miss') this.memory.delete(key);
+    if (event.type === 'bury') {
+      const odds = MEMORY_ODDS[player.id === this.id ? 'own' : 'opponent'];
+      const roll = this.random();
+      if (roll >= odds.forgotten) {
+        const uncertain = roll < odds.forgotten + odds.uncertain;
+        if (uncertain) {
+          const col = Math.floor(cell.col / 2) * 2, row = Math.floor(cell.row / 2) * 2;
+          const cells = [0,1].flatMap(dz => [0,1].map(dx => {
+            const candidate = {col:col + dx, row:row + dz};
+            return {...center(candidate), key:cellKey(candidate)};
+          }));
+          // Keep only the four possible cells, with no trace of which one was
+          // actually observed. Search order comes from the bot's own position.
+          this.memory.set(`area:${col}:${row}:${player.id}`, {cells, player:player.id});
+        } else this.rememberExact(cell, player.id);
+      }
+    }
+    if (event.type === 'unearth' || event.type === 'miss') {
+      for (const [id, stash] of this.memory) {
+        if (!stash.cells.some(candidate => candidate.key === key)) continue;
+        if (event.type === 'unearth') this.memory.delete(id);
+        else {
+          stash.cells = stash.cells.filter(candidate => candidate.key !== key);
+          if (!stash.cells.length) this.memory.delete(id);
+        }
+      }
+      if (this.goal?.kind === 'search' && this.goal.key === key) this.goal = null;
+    }
+    // A completed failed burial confirms that this square is occupied. This
+    // prevents a forgotten stash from trapping the bot in repeated burials.
+    if (event.type === 'hint' && event.reason === 'occupied' && player.id === this.id)
+      this.rememberExact(cell, null);
     if (player.id === this.id && ['bury', 'miss', 'unearth', 'deliver', 'hint'].includes(event.type))
       this.goal = null;
+  }
+
+  rememberExact(cell, player) {
+    const key = cellKey(cell);
+    this.memory.set(key, {cells:[{...center(cell), key}], player});
   }
 
   choose(view, player) {
@@ -31,7 +72,7 @@ export class SquirrelAI {
     const safe = point => !obstacles.some(obstacle => overlapsRock(point.x, point.z, obstacle, 0.6));
     if (player.carrying) {
       if (survival && player.delivered < RULES.survivalQuota)
-        return {kind:'delivery', x:this.id ? RULES.width - 0.55 : 0.55, z:RULES.depth / 2};
+        return {kind:'delivery', x:this.id ? RULES.width - 0.55 : 0.55, z:basketBase(this.id).z};
       const cells = [];
       for (let row = 0; row < RULES.gridRows; row++)
         for (let col = this.id * RULES.gridColumns / 2; col < (this.id + 1) * RULES.gridColumns / 2; col++) {
@@ -43,7 +84,9 @@ export class SquirrelAI {
     const choices = view.acorns.map(acorn => ({...acorn, kind:'acorn'}));
     if (!survival || player.delivered < RULES.survivalQuota)
       for (const stash of this.memory.values())
-        if (survival || stash.territory !== this.id) choices.push({...stash, kind:'search'});
+        for (const candidate of stash.cells)
+          if ((survival || Number(candidate.x >= RULES.half) !== this.id) && safe(candidate))
+            choices.push({...candidate, kind:'search'});
     choices.sort((a,b) => distance(a,player) + (a.kind === 'search' ? 2 : 0) -
       distance(b,player) - (b.kind === 'search' ? 2 : 0));
     if (choices.length) return choices[0];

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Game, RULES, cellAt, cellKey } from '../src/game.js';
+import { Game, RULES, cellAt, cellKey, basketBase } from '../src/game.js';
 import { MatchRoom } from '../server/room.js';
 import { SquirrelAI } from '../src/ai.js';
 
@@ -28,6 +28,17 @@ test('Survival consumes deliveries only at the player’s own tree and caps the 
   deliver(game,0,1);
   assert.equal(player.delivered,5); assert.equal(player.carrying,true);
   assert.equal(game.drainEvents().filter(event => event.type === 'deliver').length,5);
+});
+
+test('approaching either moved basket at the board edge counts as a delivery', () => {
+  const game = survival();
+  for (const player of game.players) {
+    Object.assign(player, {x:player.id ? RULES.width - RULES.playerRadius : RULES.playerRadius,
+      z:basketBase(player.id).z, carrying:true, vx:0, vz:0});
+    game.update(0.01);
+    assert.equal(player.delivered,1);
+    assert.equal(player.carrying,false);
+  }
 });
 
 test('buried reserves persist between rounds and can be retrieved for later deliveries', () => {

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { RULES, playerStart, treeBase } from './game.js';
+import { RULES, playerStart, basketBase } from './game.js';
 import { makeTurfTexture } from './turf.js';
 import { poseSquirrel } from './squirrel-motion.js';
 import { roundLighting, WindLeaves } from './atmosphere.js';
@@ -135,8 +135,10 @@ export function makeTreeBasket(id) {
     return acorn;
   });
   const rope = mesh(geometries.cylinder, material(0xe2c18b), [0, 6, 0], [0.035, 10, 0.035], root);
-  const base = treeBase(id);
-  root.position.set(base.x - RULES.width / 2 + (id ? -1.25 : 1.25), 0, 1.65);
+  const base = basketBase(id);
+  // Set the basket in front of the descent/run route, so the squirrel's
+  // head-first climb and first steps onto the board stay visually clear.
+  root.position.set(base.x - RULES.width / 2, 0, base.z - RULES.depth / 2);
   return { root, basket, rope, contents };
 }
 
@@ -622,7 +624,9 @@ export class ForestScene {
     this.ambient.intensity = light.ambientIntensity;
     this.windLeaves.update(dt, { active: animate, reducedMotion: this.reducedMotion });
     this.demoAcorns.visible = game.phase === 'ready';
-    this.baskets.forEach(({basket, rope, contents}, id) => {
+    this.baskets.forEach(({root, basket, rope, contents}, id) => {
+      root.visible = game.mode === 'survival';
+      if (!root.visible) return;
       const player = game.players[id];
       const retired = player.eliminated && player.eliminatedRound < game.round;
       let lift = retired || game.phase === 'finished' ? 1 : 0;
@@ -634,13 +638,14 @@ export class ForestScene {
       }
       if (this.reducedMotion) lift = lift > 0 ? 1 : 0;
       const eased = THREE.MathUtils.smoothstep(lift, 0, 1);
+      const canopyZ = -root.position.z - 0.45;
       basket.position.set(Math.sin(lift * Math.PI * 6) * Math.sin(lift * Math.PI) * 0.06,
-        0.02 + eased * 10.5, -THREE.MathUtils.smoothstep(eased, 0.65, 1) * 2.1);
+        0.02 + eased * 10.5, THREE.MathUtils.smoothstep(eased, 0.65, 1) * canopyZ);
       basket.rotation.z = Math.sin(lift * Math.PI * 6) * Math.sin(lift * Math.PI) * 0.035;
       const stored = between && ['fade-in','countdown'].includes(transition.stage);
       contents.forEach((acorn, i) => { acorn.visible = game.mode === 'survival' && !stored && i < player.delivered; });
       // A taut rope shortens as the basket is reeled up into the leaves.
-      const top = new THREE.Vector3(0, 12.1, -2.1);
+      const top = new THREE.Vector3(0, 12.1, canopyZ);
       const bottom = new THREE.Vector3(basket.position.x, basket.position.y + 1.49, basket.position.z);
       const direction = top.clone().sub(bottom);
       rope.position.copy(top).add(bottom).multiplyScalar(0.5);

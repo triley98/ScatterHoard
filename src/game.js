@@ -29,6 +29,10 @@ export function dropIntervalFor(mode, round = 1) {
   return round === 1 ? 3 : round === 2 ? 5 : round + 4;
 }
 export const treeBase = id => ({ x: id === 0 ? -2 : RULES.width + 2, z: RULES.depth / 2 });
+export const basketBase = id => {
+  const base = treeBase(id);
+  return {x:base.x + (id ? -1.25 : 1.25), z:base.z + 2.7};
+};
 
 export const POWERUPS = [
   'acorn-rain',
@@ -429,7 +433,7 @@ export class Game {
 
     if (this.mode === 'survival') {
       for (const player of this.players) {
-        const base = treeBase(player.id);
+        const base = basketBase(player.id);
         if (!player.eliminated && player.carrying && !player.dig && player.delivered < RULES.survivalQuota &&
           Math.hypot(player.x - base.x, player.z - base.z) <= RULES.deliveryRadius) {
           player.carrying = false;
