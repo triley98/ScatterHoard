@@ -408,6 +408,25 @@ function handleEvents(events = game.drainEvents()) {
   }
 }
 
+function syncEliminationNotice(transition) {
+  // Derive the notice from shared state, so reconnecting players also see it.
+  // Only current-round eliminations appear, during the return and fade out.
+  const lost = game.players.filter(player => player.eliminated && player.eliminatedRound === game.round);
+  const show = game.mode === 'survival' && !$('match-view').hidden && lost.length > 0 &&
+    ['returning','fade-out'].includes(transition?.stage);
+  const notice = $('elimination-notice');
+  if (notice.hidden !== !show) notice.hidden = !show;
+  if (!show) return;
+  const names = lost.map(player => player.id === 0 ? 'Red' : 'Ash');
+  const title = names.length === 2 ? 'Red and Ash are out' : `${names[0]} is out`;
+  const counts = lost.map((player,i) => `${names[i]}: ${player.delivered} of ${RULES.survivalQuota} delivered`).join(' · ');
+  const survivor = game.players.find(player => !player.eliminated);
+  const detail = `${counts}. ${survivor ? `${survivor.id === 0 ? 'Red' : 'Ash'} continues next round.` : 'The Survival run is over.'}`;
+  for (const [id, text] of [['elimination-round',`SURVIVAL · ROUND ${game.round}`],
+    ['elimination-title',title], ['elimination-detail',detail]])
+    if ($(id).textContent !== text) $(id).textContent = text;
+}
+
 function resetToLocal() {
   lobbyAttempt++;
   $('host-room').disabled = false;
@@ -813,6 +832,7 @@ function frame(now) {
     : between ? roundTransition(game.intermissionRemaining, game.matchEnding) : null;
   $('round-fade').style.opacity = String(transition?.opacity ?? 0);
   $('round-fade').dataset.stage = transition?.stage ?? '';
+  syncEliminationNotice(transition);
   if (now >= nextUI) {
     syncUI();
     nextUI = now + 80;

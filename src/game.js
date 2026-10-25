@@ -24,6 +24,10 @@ export const RULES = Object.freeze({
 });
 
 export const GAME_MODES = ['arcade', 'survival'];
+export function dropIntervalFor(mode, round = 1) {
+  if (mode !== 'survival') return RULES.dropInterval;
+  return round === 1 ? 3 : round === 2 ? 5 : round + 4;
+}
 export const treeBase = id => ({ x: id === 0 ? -2 : RULES.width + 2, z: RULES.depth / 2 });
 
 export const POWERUPS = [
@@ -156,7 +160,7 @@ export class Game {
     this.mode = mode;
     this.matchEnding = false;
     this.survivalWinner = null;
-    this.roundDropInterval = RULES.dropInterval;
+    this.roundDropInterval = dropIntervalFor(mode);
     this.phase = 'ready';
     this.elapsed = 0;
     this.round = 1;
@@ -557,7 +561,7 @@ export class Game {
       return;
     }
     this.round++;
-    this.roundDropInterval = RULES.dropInterval + (this.mode === 'survival' ? this.round - 1 : 0);
+    this.roundDropInterval = dropIntervalFor(this.mode, this.round);
     for (const player of this.players) Object.assign(player, playerStart(player.id), { delivered: 0 });
     this.elapsed = 0;
     this.nextDrop = this.roundDropInterval;

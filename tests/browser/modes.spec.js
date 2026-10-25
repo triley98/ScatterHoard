@@ -36,6 +36,7 @@ test('Survival HUD tracks deliveries, reserves, elimination, solo continuation, 
   await fixture(page); await chooseGame(page,'survival');
   await expect(page.locator('#red-score')).toHaveText('0/5');
   await expect(page.locator('#round-label')).toHaveText('SURVIVAL · ROUND 1');
+  await expect(page.locator('#drop-label')).toContainText('EVERY 3 SECONDS');
   await page.getByRole('button',{name:'Let’s forage'}).click(); await advance(page,3100);
   await page.evaluate(() => {
     const {game}=window.fixture;
@@ -53,11 +54,17 @@ test('Survival HUD tracks deliveries, reserves, elimination, solo continuation, 
   await page.evaluate(() => {const {game}=window.fixture;game.update(60-game.elapsed);});
   await advance(page,100);
   await expect(page.locator('#grey-score')).toHaveText('OUT');
+  await expect(page.locator('#elimination-notice')).toBeVisible();
+  await expect(page.locator('#elimination-title')).toHaveText('Ash is out');
+  await expect(page.locator('#elimination-detail')).toContainText('Ash: 0 of 5 delivered');
+  await expect(page.locator('#elimination-detail')).toContainText('Red continues next round');
+  await page.screenshot({path:testInfo.outputPath('survival-elimination.png')});
   await expect(page.locator('#results-dialog')).toBeHidden();
   await page.evaluate(() => {const {game}=window.fixture;game.update(game.intermissionRemaining);});
   await advance(page,100);
   await expect(page.locator('#round-label')).toHaveText('SURVIVAL · ROUND 2');
-  await expect(page.locator('#clock-caption')).toContainText('every 6s');
+  await expect(page.locator('#clock-caption')).toContainText('every 5s');
+  await expect(page.locator('#elimination-notice')).toBeHidden();
   expect(await page.evaluate(() => window.fixture.forest.squirrels[1].root.visible)).toBe(false);
   await page.evaluate(() => {
     const {game}=window.fixture;
@@ -66,9 +73,14 @@ test('Survival HUD tracks deliveries, reserves, elimination, solo continuation, 
   });
   await advance(page,100);
   await expect(page.locator('#red-score')).toHaveText('1/5');
-  await page.evaluate(() => {const {game}=window.fixture;game.update(60-game.elapsed);game.update(game.intermissionRemaining);});
+  await page.evaluate(() => {const {game}=window.fixture;game.update(60-game.elapsed);});
+  await advance(page,100);
+  await expect(page.locator('#elimination-title')).toHaveText('Red is out');
+  await expect(page.locator('#elimination-detail')).toContainText('The Survival run is over');
+  await page.evaluate(() => {const {game}=window.fixture;game.update(game.intermissionRemaining);});
   await advance(page,100);
   await expect(page.locator('#results-dialog')).toBeVisible();
+  await expect(page.locator('#elimination-notice')).toBeHidden();
   await expect(page.locator('#round-fade')).toHaveCSS('opacity','1');
   await expect(page.locator('#results-title')).toContainText('Red lasted');
   await expect(page.locator('#result-red')).toHaveText('1');
@@ -77,6 +89,35 @@ test('Survival HUD tracks deliveries, reserves, elimination, solo continuation, 
   await expect(page.locator('#red-score')).toHaveText('0/5');
   expect(await page.evaluate(() => window.fixture.game.players.every(p=>!p.eliminated))).toBe(true);
   expect(errors).toEqual([]);
+});
+
+test('the centered Survival notice handles simultaneous eliminations without requiring events', async ({page},testInfo) => {
+  test.setTimeout(45000);
+  await page.setViewportSize({width:390,height:844});
+  await fixture(page); await chooseGame(page,'survival');
+  await page.getByRole('button',{name:'Let’s forage'}).click(); await advance(page,3100);
+  await page.evaluate(() => {
+    const {game}=window.fixture;
+    game.update(60-game.elapsed);
+    game.drainEvents(); // A reconnect receives this state without the original events.
+  });
+  await advance(page,100);
+  await expect(page.locator('#elimination-notice')).toBeVisible();
+  await expect(page.locator('#elimination-title')).toHaveText('Red and Ash are out');
+  await expect(page.locator('#elimination-detail')).toContainText('Red: 0 of 5 delivered · Ash: 0 of 5 delivered');
+  const card=await page.locator('.elimination-card').boundingBox();
+  const arena=await page.locator('#arena').boundingBox();
+  expect(card.x+card.width/2).toBeCloseTo(arena.x+arena.width/2,0);
+  expect(card.y+card.height/2).toBeCloseTo(arena.y+arena.height/2,0);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);
+  await page.screenshot({path:testInfo.outputPath('survival-both-out-mobile.png')});
+  await advance(page,3200);
+  await expect(page.locator('#elimination-notice')).toBeVisible();
+  await expect(page.locator('#round-fade')).toHaveAttribute('data-stage','fade-out');
+  await advance(page,3000);
+  await expect(page.locator('#elimination-notice')).toBeHidden();
+  await expect(page.locator('#results-dialog')).toBeVisible();
+  await expect(page.locator('#round-fade')).toHaveCSS('opacity','1');
 });
 
 for (const mode of ['arcade','survival']) test(`a real local AI ${mode} opponent forages and completes its objective`, async ({page}) => {

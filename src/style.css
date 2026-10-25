@@ -816,6 +816,32 @@ dialog h2 em {
   opacity: 0;
   pointer-events: none;
 }
+.elimination-notice {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  pointer-events: none;
+}
+.elimination-card {
+  width: min(100%, 430px);
+  padding: clamp(18px, 3vw, 30px);
+  border: 1px solid #d8ddc7;
+  border-radius: 14px;
+  background: #faf8eef5;
+  box-shadow: 0 12px 50px #13291a40;
+  text-align: center;
+}
+.elimination-card .eyebrow { color: var(--orange); }
+.elimination-card h2 {
+  font-size: clamp(23px, 3vw, 34px);
+  line-height: 1.2;
+  letter-spacing: -1px;
+  margin: 12px 0;
+}
+.elimination-card p { font-size: 13px; line-height: 1.7; margin: 0; color: #5d6d5d; }
 .arena-topline,
 .arena-bottomline {
   position: absolute;

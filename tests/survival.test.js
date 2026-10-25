@@ -50,15 +50,16 @@ test('buried reserves persist between rounds and can be retrieved for later deli
   assert.equal('buried' in game.snapshot(),false);
 });
 
-test('Survival goes beyond three rounds, slows drops by one second per round, and resets quota', () => {
+test('Survival drops follow 3, 5, 7, 8, 9, 10 seconds and reset quota beyond three rounds', () => {
   const game = survival();
   let previousDrops=0;
+  const intervals = [3,5,7,8,9,10];
   for (let round=1; round<=6; round++) {
     assert.equal(game.round,round);
-    assert.equal(game.roundDropInterval,round+4);
+    assert.equal(game.roundDropInterval,intervals[round-1]);
     assert.ok(game.players.every(player => player.delivered === 0));
     deliver(game,0); deliver(game,1); endRound(game);
-    assert.equal(game.drops-previousDrops,Math.ceil(60/(round+4)));
+    assert.equal(game.drops-previousDrops,Math.ceil(60/intervals[round-1]));
     previousDrops=game.drops;
     assert.equal(game.matchEnding,false);
     assert.equal(game.phase,'intermission');
@@ -87,6 +88,7 @@ test('an eliminated squirrel cannot move, dig or collect; the survivor continues
   assert.equal(game.players[1].eliminatedRound,1);
   game.start();
   assert.equal(game.mode,'survival'); assert.equal(game.round,1);
+  assert.equal(game.roundDropInterval,3); assert.equal(game.nextDrop,3);
   assert.ok(game.players.every(p => !p.eliminated && p.delivered === 0));
 });
 
@@ -108,7 +110,7 @@ test('online Survival mode survives ready, elimination, disconnect, snapshots an
   room.tick(76000);
   const view=room.snapshot();
   assert.equal(view.mode,'survival'); assert.equal(view.round,2);
-  assert.equal(view.roundDropInterval,6); assert.equal(view.players[1].eliminated,true);
+  assert.equal(view.roundDropInterval,5); assert.equal(view.players[1].eliminated,true);
   assert.equal('buried' in view,false);
   room.disconnect(0,76000); room.tick(77000);
   assert.equal(room.game.phase,'paused');
