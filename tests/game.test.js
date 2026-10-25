@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Game, RULES, cellAt, cellKey, overlapsRock } from '../src/game.js';
+import { Game, RULES, cellAt, cellKey, territoryFor, overlapsRock } from '../src/game.js';
 
 const idle = [
   { x: 0, z: 0 },
@@ -98,9 +98,9 @@ test('a squirrel picks up automatically, carries only one acorn, and must dig to
   game.update(0.25, idle);
   assert.deepEqual(game.scores, [1, 0]);
   assert.equal(game.buried.size, 1);
-  assert.deepEqual(game.buried.get('8,5'), {
-    col: 8,
-    row: 5,
+  assert.deepEqual(game.buried.get('6,3'), {
+    col: 6,
+    row: 3,
     territory: 0,
     player: 0,
   });
@@ -119,7 +119,7 @@ test('a cell accepts only one acorn, including simultaneous dig attempts', () =>
   assert.equal(game.players[1].carrying, true);
   assert.equal(game.buried.size, 1);
   assert.deepEqual(game.scores, [1, 0]);
-  game.players[1].x = 9.1;
+  game.players[1].x = 9.5;
   assert.equal(game.requestDig(1), true);
   game.update(RULES.digDuration, idle);
   assert.deepEqual(game.scores, [2, 0]);
@@ -346,9 +346,61 @@ test('contested acorns go to the closest eligible squirrel; exact ties alternate
 });
 
 test('fractional coordinates map to grid cells at edges and across the center line', () => {
-  assert.equal(cellKey(cellAt(19.999, 9.99)), '19,9');
-  assert.equal(cellKey(cellAt(20, 0)), '20,0');
-  assert.equal(cellKey(cellAt(40, 15)), '39,14');
+  assert.equal(cellKey(cellAt(19.999, 9.99)), '14,6');
+  assert.equal(cellKey(cellAt(20, 0)), '15,0');
+  assert.equal(cellKey(cellAt(40, 15)), '29,9');
+});
+
+test('the unchanged clearing has exactly 30 by 10 hidden cells with 15 columns per side', () => {
+  assert.equal(RULES.width, 40);
+  assert.equal(RULES.depth, 15);
+  const keys = new Set();
+  for (let row = 0; row < 10; row++) for (let col = 0; col < 30; col++) {
+    const cell = cellAt((col + 0.5) * 40 / 30, (row + 0.5) * 15 / 10);
+    assert.deepEqual(cell, {col, row});
+    assert.equal(territoryFor(col), col < 15 ? 0 : 1);
+    keys.add(cellKey(cell));
+  }
+  assert.equal(keys.size, 300);
+  assert.deepEqual(cellAt(-1, -1), {col:0, row:0});
+  // Points separated by an old one-unit boundary now share a larger cell.
+  assert.deepEqual(cellAt(8.5, 5.5), cellAt(9.1, 5.9));
+});
+
+test('automatic pickups reach 25% farther while still requiring proximity', () => {
+  assert.ok(Math.abs(RULES.pickupRadius - 0.72 * 1.25) < 1e-8);
+  for (const [distance, collected] of [[0.8, true], [0.89, true], [0.91, false]]) {
+    const game = makeGame();
+    game.acorns = [{id:900, x:game.players[0].x + distance, z:game.players[0].z, born:0}];
+    game.update(0.01, idle);
+    assert.equal(game.players[0].carrying, collected);
+  }
+});
+
+test('regular drops never repeat a side three times, even across rounds and obstacle fallback', () => {
+  for (const random of [() => 0, () => 0.25, () => 0.5, () => 0.9999, seededRandom(120)]) {
+    const game = new Game({random});
+    game.start();
+    game.update(60 * 3 + RULES.intermission * 2 + RULES.ending);
+    const drops = game.drainEvents().filter(event => event.type === 'drop').map(event => Number(event.acorn.x >= 20));
+    assert.equal(drops.length, 36);
+    for (let i = 2; i < drops.length; i++)
+      assert.ok(drops[i] !== drops[i-1] || drops[i] !== drops[i-2]);
+    game.reset();
+    assert.equal(game.lastDropSide, null);
+    assert.equal(game.dropStreak, 0);
+  }
+});
+
+test('acorn rain keeps its targeted bonus without resetting the regular drop streak', () => {
+  const game = makeGame();
+  game.random = () => 0.25;
+  const first = game.dropAcorn();
+  const second = game.dropAcorn();
+  assert.ok(first.x < 20 && second.x < 20);
+  game.applyPowerup(game.players[0], 'acorn-rain');
+  assert.ok(game.acorns.slice(-3).every(acorn => acorn.x < 20));
+  assert.ok(game.dropAcorn().x >= 20);
 });
 
 test('round transitions retain stashes and return positions, then reset positions before play', () => {
@@ -387,18 +439,18 @@ test('a round-one stash stays in its exact cell through round two and can be rec
   giveAcorn(game, 0, 12.2, 8.7);
   assert.equal(game.requestDig(0), true);
   game.update(RULES.digDuration, idle);
-  const stash = { ...game.buried.get('12,8') };
-  assert.deepEqual(stash, { col: 12, row: 8, territory: 0, player: 0 });
+  const stash = { ...game.buried.get('9,5') };
+  assert.deepEqual(stash, { col: 9, row: 5, territory: 0, player: 0 });
 
   for (const round of [1, 2]) {
     game.update(RULES.duration - game.elapsed, idle);
     assert.equal(game.phase, 'intermission');
     assert.equal(game.round, round);
     assert.equal(game.acorns.length, 0);
-    assert.deepEqual(game.buried.get('12,8'), stash);
+    assert.deepEqual(game.buried.get('9,5'), stash);
     game.update(RULES.intermission, idle);
     assert.equal(game.round, round + 1);
-    assert.deepEqual(game.buried.get('12,8'), stash);
+    assert.deepEqual(game.buried.get('9,5'), stash);
     assert.deepEqual(game.scores, [1, 0]);
   }
 
@@ -407,14 +459,14 @@ test('a round-one stash stays in its exact cell through round two and can be rec
   assert.equal(game.requestDig(1), true);
   game.update(RULES.digDuration, idle);
   assert.equal(game.players[1].carrying, false);
-  assert.deepEqual(game.buried.get('12,8'), stash);
+  assert.deepEqual(game.buried.get('9,5'), stash);
 
   // A different point in the original cell retrieves it for either player.
   Object.assign(game.players[1], { x: 12.8, z: 8.2 });
   assert.equal(game.requestDig(1), true);
   game.update(RULES.digDuration, idle);
   assert.equal(game.players[1].carrying, true);
-  assert.equal(game.buried.has('12,8'), false);
+  assert.equal(game.buried.has('9,5'), false);
   assert.deepEqual(game.scores, [0, 0]);
 });
 

@@ -549,7 +549,7 @@ export class ForestScene {
     const between = game.phase === 'intermission' ||
       (game.phase === 'paused' && game.resumePhase === 'intermission');
     const transition = between ? roundTransition(game.intermissionRemaining, game.round === RULES.rounds) : null;
-    const light = roundLighting(transition?.daylight || game.phase === 'finished' ? 0 : game.elapsed);
+    const light = roundLighting(transition?.daylight ? 0 : game.elapsed);
     this.sun.position.set(...light.position);
     this.sun.intensity = light.sunIntensity;
     this.sun.color.copy(this.daySun).lerp(this.duskSun, light.dusk);

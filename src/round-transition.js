@@ -6,8 +6,8 @@ export const ROUND_TIMING = Object.freeze({
 });
 
 export function transitionDuration(final = false) {
-  return ROUND_TIMING.returning + ROUND_TIMING.fadeOut + ROUND_TIMING.fadeIn +
-    (final ? 0 : ROUND_TIMING.countdown);
+  return ROUND_TIMING.returning + ROUND_TIMING.fadeOut +
+    (final ? 0 : ROUND_TIMING.fadeIn + ROUND_TIMING.countdown);
 }
 
 /** Both clients derive the entire break from the authoritative, pausable clock. */
@@ -22,11 +22,12 @@ export function roundTransition(remaining, final = false) {
     const progress = (elapsed - fadeStart) / ROUND_TIMING.fadeOut;
     return { stage: 'fade-out', progress, opacity: progress, daylight: false };
   }
+  if (final) return { stage: 'black', progress: 1, opacity: 1, daylight: false };
   if (elapsed < countdownStart) {
     const progress = (elapsed - dawnStart) / ROUND_TIMING.fadeIn;
     return { stage: 'fade-in', progress, opacity: 1 - progress, daylight: true };
   }
-  return { stage: final ? 'complete' : 'countdown',
+  return { stage: 'countdown',
     progress: Math.min(1, (elapsed - countdownStart) / ROUND_TIMING.countdown),
     opacity: 0, daylight: true };
 }

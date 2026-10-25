@@ -87,15 +87,25 @@ test('held dig keys never scroll or activate results, and fades finish before th
   });
   await page.keyboard.down('Space');
   await page.keyboard.down('Enter');
-  await advance(page, 9400);
+  await advance(page, 6400);
   await expect(page.locator('#results-dialog')).toBeVisible();
+  await expect(page.locator('#round-fade')).toHaveCSS('opacity', '1');
+  await expect(page.locator('#round-fade')).toHaveAttribute('data-stage', 'black');
+  const finalSun = await page.evaluate(() => window.fixture.forest.sun.intensity);
+  expect(finalSun).toBeCloseTo(1.8);
   await page.keyboard.down('Space');
   await page.keyboard.down('Enter');
   await page.keyboard.up('Space');
   await page.keyboard.up('Enter');
   await advance(page, 100);
   await expect(page.locator('#results-dialog')).toBeVisible();
-  expect(await page.evaluate(() => window.fixture.game.phase)).toBe('finished');
+  await advance(page, 3500);
+  await expect(page.locator('#round-fade')).toHaveCSS('opacity', '1');
+  await page.getByRole('button', { name: 'One more match' }).click();
+  await advance(page, 100);
+  await expect(page.locator('#round-fade')).toHaveCSS('opacity', '0');
+  expect(await page.evaluate(() => window.fixture.forest.sun.intensity)).toBe(3.2);
+  expect(await page.evaluate(() => window.fixture.game.phase)).toBe('countdown');
   expect(errors).toEqual([]);
 });
 

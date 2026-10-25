@@ -18,7 +18,7 @@ test('return, three-second fade out, three-second dawn, then countdown run in or
   assert.equal(ROUND_TIMING.countdown, 3);
 });
 
-test('the last round returns and fades before results, with no extra countdown', () => {
+test('the last round returns, fades to black, and stays black behind results', () => {
   const game = new Game();
   game.start();
   game.round = RULES.rounds;
@@ -28,16 +28,19 @@ test('the last round returns and fades before results, with no extra countdown',
   assert.equal(game.phase, 'intermission');
   assert.equal(game.players[0].dig, null);
   assert.equal(game.requestDig(0), false);
-  assert.equal(game.intermissionRemaining, 9);
+  assert.equal(game.intermissionRemaining, 6);
   assert.ok(!game.drainEvents().some(event => event.type === 'finish'));
-  game.update(6);
+  game.update(4.5);
   const frozen = roundTransition(game.intermissionRemaining, true);
-  assert.equal(frozen.opacity, 1);
+  assert.equal(frozen.opacity, 0.5);
   game.pause();
   game.update(20);
   assert.deepEqual(roundTransition(game.intermissionRemaining, true), frozen);
   game.resume();
-  game.update(3);
+  game.update(1.5);
+  assert.equal(game.phase, 'finished');
+  assert.deepEqual(roundTransition(0, true), {stage:'black', progress:1, opacity:1, daylight:false});
+  game.update(30);
   assert.equal(game.phase, 'finished');
   assert.equal(game.drainEvents().filter(event => event.type === 'finish').length, 1);
 });

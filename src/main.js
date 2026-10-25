@@ -655,7 +655,8 @@ function frame(now) {
   handleEvents();
   const between = game.phase === 'intermission' ||
     (game.phase === 'paused' && game.resumePhase === 'intermission');
-  const transition = between ? roundTransition(game.intermissionRemaining, game.round === RULES.rounds) : null;
+  const transition = game.phase === 'finished' ? roundTransition(0, true)
+    : between ? roundTransition(game.intermissionRemaining, game.round === RULES.rounds) : null;
   $('round-fade').style.opacity = String(transition?.opacity ?? 0);
   $('round-fade').dataset.stage = transition?.stage ?? '';
   if (now >= nextUI) {

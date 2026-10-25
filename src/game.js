@@ -4,6 +4,8 @@ export const RULES = Object.freeze({
   width: 40,
   depth: 15,
   half: 20,
+  gridColumns: 30,
+  gridRows: 10,
   duration: 60,
   rounds: 3,
   intermission: transitionDuration(),
@@ -12,7 +14,7 @@ export const RULES = Object.freeze({
   dropInterval: 5,
   speed: 7,
   acceleration: 32,
-  pickupRadius: 0.72,
+  pickupRadius: 0.9,
   digDuration: 0.55,
   playerRadius: 0.32,
   powerupChance: 0.1,
@@ -29,11 +31,11 @@ export const POWERUPS = [
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 export const cellAt = (x, z) => ({
-  col: clamp(Math.floor(x), 0, RULES.width - 1),
-  row: clamp(Math.floor(z), 0, RULES.depth - 1),
+  col: clamp(Math.floor(x * RULES.gridColumns / RULES.width), 0, RULES.gridColumns - 1),
+  row: clamp(Math.floor(z * RULES.gridRows / RULES.depth), 0, RULES.gridRows - 1),
 });
 export const cellKey = ({ col, row }) => `${col},${row}`;
-export const territoryFor = (col) => (col < RULES.half ? 0 : 1);
+export const territoryFor = (col) => (col < RULES.gridColumns / 2 ? 0 : 1);
 
 export function overlapsRock(x, z, rock, radius = RULES.playerRadius) {
   const nearX = clamp(x, rock.x, rock.x + rock.width);
@@ -159,6 +161,8 @@ export class Game {
     this.events = [];
     this.drops = 0;
     this.bonusDrops = 0;
+    this.lastDropSide = null;
+    this.dropStreak = 0;
     this.nextId = 0;
     this.pickupPriority = 0;
   }
@@ -206,6 +210,10 @@ export class Game {
 
   dropAcorn(side = null, bonus = false) {
     const obstacles = this.obstacles;
+    // Acorn rain is a targeted reward. Only regular drops participate in the
+    // random-side streak, which persists across rounds and resets per match.
+    const forcedSide = !bonus && this.dropStreak >= 2 ? 1 - this.lastDropSide : null;
+    if (forcedSide !== null && side !== null) side = forcedSide;
     // Keep drops in the playable interior; retry occupied cells without unbounded loops.
     let x, z;
     for (let attempt = 0; attempt < 50; attempt++) {
@@ -213,6 +221,9 @@ export class Game {
         side === null
           ? 1 + this.random() * (RULES.width - 2)
           : side * RULES.half + 1 + this.random() * (RULES.half - 2);
+      if (forcedSide !== null && Number(x >= RULES.half) !== forcedSide)
+        x = RULES.width - x;
+      if (forcedSide === 0) x = Math.min(x, RULES.half - 1e-8);
       z = 0.8 + this.random() * (RULES.depth - 1.6);
       const key = cellKey(cellAt(x, z));
       if (
@@ -224,9 +235,10 @@ export class Game {
     }
     // A fixed RNG or a crowded board must never leave a drop inside an obstacle.
     if (obstacles.some((obstacle) => overlapsRock(x, z, obstacle, 0.55))) {
+      const fallbackSide = forcedSide ?? side;
       outer: for (let row = 0; row < RULES.depth; row++)
-        for (let col = side === null ? 0 : side * RULES.half;
-          col < (side === null ? RULES.width : (side + 1) * RULES.half); col++) {
+        for (let col = fallbackSide === null ? 0 : fallbackSide * RULES.half;
+          col < (fallbackSide === null ? RULES.width : (fallbackSide + 1) * RULES.half); col++) {
           if (!obstacles.some((obstacle) => overlapsRock(col + 0.5, row + 0.5, obstacle, 0.55))) {
             x = col + 0.5; z = row + 0.5; break outer;
           }
@@ -235,7 +247,12 @@ export class Game {
     const acorn = { id: this.nextId++, x, z, born: this.matchElapsed };
     this.acorns.push(acorn);
     if (bonus) this.bonusDrops++;
-    else this.drops++;
+    else {
+      const actualSide = Number(x >= RULES.half);
+      this.dropStreak = actualSide === this.lastDropSide ? this.dropStreak + 1 : 1;
+      this.lastDropSide = actualSide;
+      this.drops++;
+    }
     this.events.push({ type: 'drop', acorn: { ...acorn } });
     return acorn;
   }
