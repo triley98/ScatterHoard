@@ -1954,3 +1954,57 @@ dialog > p {
   .play-modes > div { flex-wrap: wrap; }
   .header-right .local-badge { display: none; }
 }
+
+/* Into the Woods: the selected layout, connected to the working game. */
+body.into-the-woods{background:#263e30;isolation:isolate}
+body.into-the-woods:before{content:'';position:fixed;inset:0;z-index:-1;background:linear-gradient(90deg,#1b3429ed,#1d3529a0),url('/forest-menu.png') center/cover;pointer-events:none}
+.into-the-woods .site-header{border-color:#ffffff25;color:#fff9e7}
+.into-the-woods .site-header button{color:#fff9e7}
+.into-the-woods .site-header .local-badge{display:none}
+.into-the-woods .help-icon,.into-the-woods .icon-button{border-color:#ffffff40}
+.into-the-woods .main-menu{max-width:850px;margin:auto;text-align:center;padding:50px 0 70px;min-height:76vh;color:#fff9e7}
+.into-the-woods .main-menu h1{font-size:clamp(44px,5.2vw,66px);letter-spacing:-2px;max-width:700px;margin:26px auto}
+.into-the-woods .main-menu h1 em{color:#e3b082}
+.into-the-woods .main-menu>.eyebrow{color:#bed09b}
+.into-the-woods .main-menu>p{color:#c7d2b9;margin:0 auto 35px}
+.into-the-woods .menu-options{max-width:750px;margin:auto;gap:16px}
+.into-the-woods .menu-card{background:#f4f0df;border-color:transparent;min-height:240px;gap:20px}
+.into-the-woods .menu-card .eyebrow{color:#687b52}
+.into-the-woods .survival-card{background:#cad8b6}
+.into-the-woods .menu-card:hover{background:#fff9e8;transform:translateY(-2px)}
+.menu-card strong svg{width:24px;height:24px;display:block}
+.menu-facts{display:flex;justify-content:center;gap:28px;color:#c0cfa9;margin:34px 0;font-size:9px}
+.menu-facts span{display:flex;align-items:center;gap:8px}
+.menu-facts b{font-family:Manrope,sans-serif;color:#f0e4c8;font-size:23px}
+#menu-atmosphere p{font-size:11px;color:#c6cfb6}
+.into-the-woods .choosing-match{max-width:620px;background:#f5f1e3;padding:32px;margin:38px auto 70px;border-radius:16px;color:var(--ink);text-align:left;min-height:0}
+.into-the-woods .choosing-match h1{font-size:38px;margin:20px 0}
+.into-the-woods .choosing-match h1 em{color:var(--orange)}
+.into-the-woods .choosing-match>p{color:#6c7c60;margin-bottom:25px}
+.into-the-woods .choosing-match>.eyebrow{color:#788c5e}
+.choosing-match #menu-atmosphere{display:none}
+.into-the-woods .match-choices{grid-template-columns:1fr;gap:12px}
+.into-the-woods .match-choices .menu-card{min-height:0;padding:20px;background:#fcfaf1;border:1px solid #d6ddc9;gap:10px}
+.into-the-woods .match-choices strong{font-size:20px}
+.into-the-woods .match-choices .menu-card>span{font-size:12px}
+#match-view{background:#f5f3eb;border-radius:16px;padding:24px;margin:28px 0 40px}
+.into-the-woods footer{color:#c0cdaa;border-color:#ffffff25}
+.into-the-woods footer>span{color:inherit}
+.setting-row{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:25px 0;font-size:14px}
+.setting-row input{width:20px;height:20px;accent-color:#354f3c}
+@media(max-width:700px){
+ .into-the-woods .main-menu{padding:36px 0 60px}
+ .into-the-woods .main-menu h1{font-size:48px;letter-spacing:-1.8px}
+ .into-the-woods .menu-card{min-height:190px;padding:23px}
+ .into-the-woods .main-menu>p{font-size:13px}
+ .into-the-woods .choosing-match{padding:24px 20px;margin:25px auto 40px}
+ .into-the-woods .choosing-match h1{font-size:35px}
+ .menu-facts{gap:14px;flex-wrap:wrap;font-size:8px}
+ .menu-facts span{gap:5px}.menu-facts b{font-size:20px}
+ #match-view{padding:12px;margin-top:20px}
+ .into-the-woods .header-right{gap:9px}
+ .into-the-woods .site-header .brand{font-size:21px}
+ .into-the-woods .brand-mark{margin-right:8px}
+ .into-the-woods .site-header{height:auto;min-height:77px;flex-wrap:wrap;gap:10px;padding:18px 0}
+ .into-the-woods .header-right{margin-left:auto}
+}

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#f5f3eb" />
+    <meta name="theme-color" content="#263e30" />
     <meta
       name="description"
       content="Arcade rivalry or endless Survival. Play with a friend, challenge the AI, or meet online."
@@ -11,7 +11,7 @@
     <title>ScatterHoard — A little woodland rivalry</title>
     <link rel="icon" type="image/svg+xml" href="/acorn.svg" />
   </head>
-  <body>
+  <body class="into-the-woods">
     <div id="app">
       <header class="site-header">
         <a class="brand" href="./" aria-label="ScatterHoard home"
@@ -26,7 +26,7 @@
           ><button class="text-button" id="menu-button" hidden>Main menu</button
           ><button class="text-button" id="help-button">
             <span class="help-icon">?</span> How to play</button
-          ><button
+          ><button class="text-button" id="settings-button">Settings</button><button
             class="icon-button"
             id="sound-button"
             aria-label="Turn sound on"
@@ -39,8 +39,8 @@
       <main>
         <section id="main-menu" class="main-menu" aria-labelledby="menu-title">
           <span class="eyebrow">A LITTLE WOODLAND RIVALRY</span>
-          <h1 id="menu-title">Small paws.<br /><em>Big choices.</em></h1>
-          <p id="menu-description">Choose your way into the clearing.</p>
+          <h1 id="menu-title">The woods are calling.<br /><em>Bring a friend.</em></h1>
+          <p id="menu-description">Collect a little. Hide a lot. See who makes it through winter.</p>
           <div id="game-mode-options" class="menu-options">
             <button class="menu-card" data-game-mode="arcade" aria-label="Arcade">
               <span class="eyebrow">01 · THE ORIGINAL RIVALRY</span><strong>Arcade <span>↗</span></strong>
@@ -61,6 +61,7 @@
             </div>
             <button id="menu-back" class="text-button">← Back to game modes</button>
           </div>
+          <div id="menu-atmosphere"><div class="menu-facts"><span><b>02</b> SQUIRRELS</span><span><b>60</b> SECOND ROUNDS</span><span><b>01</b> LITTLE RIVALRY</span></div><p>A small game of big plans. Best enjoyed with a rival.</p></div>
         </section>
         <div id="match-view" hidden>
         <section class="intro" aria-labelledby="page-title">
@@ -328,6 +329,14 @@
       </footer>
     </div>
 
+    <dialog id="settings-dialog" aria-labelledby="settings-title">
+      <button class="dialog-close" data-close="settings-dialog" aria-label="Close settings">×</button>
+      <span class="eyebrow">YOUR CORNER OF THE WOODS</span><h2 id="settings-title">A little<br><em>fine tuning.</em></h2>
+      <label class="setting-row" for="settings-sound">Woodland sounds <input id="settings-sound" type="checkbox"></label>
+      <label class="setting-row" for="settings-motion">Reduce scenery motion <input id="settings-motion" type="checkbox"></label>
+      <p>Sound starts muted. Motion follows your device preference until you change it here.</p>
+      <button class="primary-button dialog-primary" data-close="settings-dialog">Back to the clearing</button>
+    </dialog>
     <dialog id="lobby-dialog" aria-labelledby="lobby-title">
       <button
         class="dialog-close"

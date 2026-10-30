@@ -10,6 +10,8 @@ The static website is published through GitHub Pages at **https://triley98.githu
 
 Choose **Arcade** or **Survival** on the main menu, then choose local human vs human, human vs AI, or online human vs human. The original Arcade rules remain unchanged.
 
+The published interface uses the **Into the Woods** design: a forest-backed main menu, light match-setup panel, and paper-framed game view. **Settings** controls woodland sound and reduced scenery motion. Opening Settings pauses a local match and resumes it when closed; online matches continue while the menu is open.
+
 - **Same keyboard:** choose local human vs human, then click **Let’s forage**. Red moves with WASD and digs with Space; Ash moves with arrow keys and digs with Enter.
 - **Human vs AI:** you control Red; the computer controls Ash. It collects, buries, delivers, and searches using visible acorns and imperfect memory. It misses 20% of your burials and remembers only a 2 × 2 area for another 40%. For its own stashes, it forgets 5% and remembers only the area for another 15%. An uncertain memory has four possible squares; the AI must dig to rule out wrong guesses. It cannot inspect hidden stashes.
 - **Online:** click **Online with a friend → Host a clearing**, then copy the invite link. Your friend opens it and chooses **Join clearing**. Host is Red, guest is Ash. Both choose **Ready to forage** to start. Online, either movement key set and either dig key control only your assigned squirrel.

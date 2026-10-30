@@ -35,6 +35,7 @@ const gameKeys = new Set([
 ]);
 const dialogs = [
   'help-dialog',
+  'settings-dialog',
   'pause-dialog',
   'results-dialog',
   'lobby-dialog',
@@ -44,6 +45,7 @@ let remoteState = null;
 let lastInputAt = 0;
 let onlineDig = false;
 const badges = new PlayerBadges($('player-badges'), $('game-announcements'));
+for (const span of document.querySelectorAll('.menu-card strong span')) span.innerHTML = arrowIcon;
 for (const icon of document.querySelectorAll('[data-legend-icon]'))
   icon.innerHTML = badgeIcon(icon.dataset.legendIcon);
 const sessionQuery = new URLSearchParams(location.search);
@@ -102,8 +104,9 @@ function openMenu() {
   $('menu-button').hidden = true;
   $('game-mode-options').hidden = false;
   $('match-options').hidden = true;
-  $('menu-title').innerHTML = 'Small paws.<br><em>Big choices.</em>';
-  $('menu-description').textContent = 'Choose your way into the clearing.';
+  $('menu-title').innerHTML = 'The woods are calling.<br><em>Bring a friend.</em>';
+  $('main-menu').classList.remove('choosing-match');
+  $('menu-description').textContent = 'Collect a little. Hide a lot. See who makes it through winter.';
   document.querySelector('[data-game-mode="arcade"]').focus({preventScroll:true});
 }
 
@@ -114,6 +117,7 @@ for (const button of document.querySelectorAll('[data-game-mode]'))
     syncUI();
     $('game-mode-options').hidden = true;
     $('match-options').hidden = false;
+    $('main-menu').classList.add('choosing-match');
     $('menu-title').innerHTML = `${selectedMode === 'survival' ? 'Survival' : 'Arcade'}.<br><em>Who’s playing?</em>`;
     $('menu-description').textContent = selectedMode === 'survival'
       ? 'Deliver five acorns to your own tree each round. Stay in as long as you can.'
@@ -231,18 +235,18 @@ function showResults() {
   audio.play('finish');
 }
 
-function openHelp() {
+function openHelp(dialogId = 'help-dialog') {
   if (anyDialogOpen()) return;
   helpPreviousPhase = game.phase;
   if (!online && ['playing', 'intermission'].includes(game.phase)) game.pause();
   else if (!online && game.phase === 'countdown')
     game.phase = 'paused-countdown';
   clearInputs();
-  $('help-dialog').showModal();
+  $(dialogId).showModal();
   syncUI();
 }
 
-$('help-dialog').addEventListener('close', () => {
+for (const id of ['help-dialog','settings-dialog']) $(id).addEventListener('close', () => {
   if (
     !online &&
     ['playing', 'intermission'].includes(helpPreviousPhase) &&
@@ -289,7 +293,19 @@ $('restart-button').addEventListener('click', () => {
     pauseGame();
   }
 });
-$('help-button').addEventListener('click', openHelp);
+$('help-button').addEventListener('click', () => openHelp());
+$('settings-button').addEventListener('click', () => {
+  $('settings-sound').checked = audio.enabled;
+  $('settings-motion').checked = forest?.reducedMotion ?? true;
+  openHelp('settings-dialog');
+});
+$('settings-sound').addEventListener('change', event => {
+  if (event.target.checked !== audio.enabled) audio.toggle();
+  syncSound();
+});
+$('settings-motion').addEventListener('change', event => {
+  if (forest) forest.reducedMotion = event.target.checked;
+});
 $('sound-button').addEventListener('click', () => {
   audio.toggle();
   syncSound();
