@@ -138,7 +138,7 @@ for (const mode of ['arcade','survival']) test(`a real local AI ${mode} opponent
     Object.assign(game.players[1],{x:31.5,z:7.5,vx:0,vz:0,carrying:false}); opponent.reset();
     game.acorns=Array.from({length:7},(_,id)=>({id:100+id,x:31.5+id*0.15,z:7.5,born:game.matchElapsed}));
   });
-  await page.keyboard.down('ArrowLeft'); await advance(page,1000); await page.keyboard.up('ArrowLeft');
+  await advance(page,1000);
   await advance(page,19000);
   if(mode === 'survival') await expect(page.locator('#grey-score')).toHaveText('5/5');
   else expect(await page.evaluate(() => window.fixture.game.scores[1])).toBeGreaterThan(0);

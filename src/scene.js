@@ -398,19 +398,23 @@ export class ForestScene {
       this.scene,
     );
     turf.rotation.x = -Math.PI / 2;
+    this.patchFences = new THREE.Group();
+    this.patchFences.name = 'patch-fences';
+    this.patchFences.visible = this.game.mode !== 'survival';
+    this.scene.add(this.patchFences);
     mesh(
       new THREE.BoxGeometry(19.9, 0.035, 0.075),
       material(0xd5976a),
       [-10, 0.035, RULES.depth / 2 + 0.02],
       null,
-      this.scene,
+      this.patchFences,
     );
     mesh(
       new THREE.BoxGeometry(19.9, 0.035, 0.075),
       material(0xb3c6a4),
       [10, 0.035, RULES.depth / 2 + 0.02],
       null,
-      this.scene,
+      this.patchFences,
     );
     const postMat = material(0xc0a67b);
     for (const x of [-20.2, 0, 20.2]) {
@@ -420,14 +424,14 @@ export class ForestScene {
           postMat,
           [x, -0.05, z],
           [0.065, 0.7, 0.065],
-          this.scene,
+          this.patchFences,
         );
         mesh(
           geometries.sphere,
           material(0xdfc797),
           [x, 0.32, z],
           [0.09, 0.09, 0.09],
-          this.scene,
+          this.patchFences,
         );
       }
     }
@@ -611,6 +615,7 @@ export class ForestScene {
 
   render(time, dt) {
     const { game } = this;
+    this.patchFences.visible = game.mode !== 'survival';
     this.syncRocks();
     const active = game.phase === 'playing';
     const animate = !this.reducedMotion && !['paused', 'paused-countdown'].includes(game.phase);

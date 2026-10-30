@@ -133,9 +133,8 @@ for (const mode of ['arcade','survival']) test(`two separate browsers host, join
       );
     }
     await guest.getByRole('button', { name: 'Leave room' }).click();
-    await expect(guest.locator('#connection-status')).toHaveText(
-      'Two squirrels. One screen.',
-    );
+    await expect(guest.locator('#connection-status')).toBeHidden();
+    await expect(guest.locator('#connection-status')).toHaveText('');
     await expect.poll(() => hostStates.at(-1)?.phase).toBe('paused');
     expect(errors).toEqual([]);
   } finally {

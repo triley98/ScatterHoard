@@ -14,11 +14,8 @@
   <body class="into-the-woods">
     <div id="app">
       <header class="site-header">
-        <a class="brand" href="./" aria-label="ScatterHoard home"
-          ><span class="brand-mark" aria-hidden="true"></span>scatter<span
-            class="brand-light"
-            >hoard</span
-          ></a
+        <a class="brand" href="./" aria-label="Scatter Hoard home"
+          ><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">Scatter <span class="brand-light">Hoard</span></span></a
         >
         <div class="header-right">
           <span class="local-badge"
@@ -48,8 +45,8 @@
               <small>3 ROUNDS · 60 SECONDS EACH</small>
             </button>
             <button class="menu-card survival-card" data-game-mode="survival" aria-label="Survival">
-              <span class="eyebrow">02 · MAKE EVERY ACORN COUNT</span><strong>Survival <span>↗</span></strong>
-              <span>Bring five acorns home each round. Bury a reserve as the drops grow scarce.</span>
+              <span class="eyebrow">02 · THE LONG WINTER</span><strong>Survival <span>↗</span></strong>
+              <span>Bring five acorns home each round. Bury the rest for future rounds when acorn drops grow scarce.</span>
               <small>ENDLESS ROUNDS · A GROWING CHALLENGE</small>
             </button>
           </div>
@@ -61,22 +58,11 @@
             </div>
             <button id="menu-back" class="text-button">← Back to game modes</button>
           </div>
-          <div id="menu-atmosphere"><div class="menu-facts"><span><b>02</b> SQUIRRELS</span><span><b>60</b> SECOND ROUNDS</span><span><b>01</b> LITTLE RIVALRY</span></div><p>A small game of big plans. Best enjoyed with a rival.</p></div>
         </section>
         <div id="match-view" hidden>
         <section class="intro" aria-labelledby="page-title">
           <div>
-            <div class="eyebrow">
-              <span class="tiny-star">✳</span> THE WOODS ARE BIG ENOUGH FOR
-              TWO. PROBABLY.
-            </div>
             <h1 id="page-title">Small paws. <em>Big plans.</em></h1>
-            <p>Collect a little. Bury a lot. Settle it in the clearing.</p>
-          </div>
-          <div class="round-facts">
-            <span><b>02</b> SQUIRRELS</span><i></i><span><b>03</b> ROUNDS</span
-            ><i></i><span><b>60</b> SECONDS EACH</span><i></i
-            ><span><b>01</b> WINNER</span>
           </div>
         </section>
 
@@ -94,7 +80,7 @@
             </button>
           </div>
           <span id="connection-status" role="status"
-            >Two squirrels. One screen.</span
+            hidden></span
           >
         </div>
         <div class="room-bar" id="room-bar" hidden>
@@ -173,10 +159,7 @@
               aria-label="Game board: 30 columns by 10 rows. Red squirrel starts on the left, grey squirrel on the right. Use WASD and Space for Red, arrow keys and Enter for Ash."
             ></canvas>
             <div class="arena-topline">
-              <span class="arena-label"
-                ><span class="live-dot"></span> THE CLEARING
-                <span class="arena-label-light">/ 30 × 10</span></span
-              ><span class="drop-label" id="drop-label"
+              <span class="drop-label" id="drop-label"
                 ><span class="acorn-mini" aria-hidden="true"></span> AN ACORN
                 EVERY 5 SECONDS</span
               >
@@ -205,13 +188,6 @@
                 This game needs WebGL. Try a browser with hardware acceleration
                 enabled.
               </p>
-            </div>
-            <div class="arena-bottomline">
-              <span
-                ><span class="view-icon" aria-hidden="true">◇</span> 45°
-                VIEW</span
-              ><span>NO FENCES. JUST FRIENDLY COMPETITION.</span
-              ><span>15 × 10 PER PATCH</span>
             </div>
           </div>
 
@@ -275,6 +251,7 @@
               ><kbd class="wide-key">space</kbd
               ><span class="control-verb">DIG</span>
             </div>
+            <p id="human-controls-note" class="rule-footnote" hidden>Against AI, either set controls Red: WASD or arrows to move, Space or Enter to dig.</p>
           </div>
           <div class="control-card grey-controls">
             <div class="control-player">
@@ -301,7 +278,7 @@
               empty-handed to steal any stash — or uncover a surprise.
             </p>
             <span class="rule-footnote"
-              >Hidden stashes. A 10% powerup chance on every search.</span
+              >Hidden stashes. Every search could hold a surprise.</span
             >
           </div>
         </section>
@@ -321,11 +298,7 @@
         </div>
       </main>
       <footer>
-        <span>A little woodland rivalry.</span
-        ><span
-          >MADE FOR TWO. PLAYED FOR KEEPS.
-          <span aria-hidden="true">✳</span></span
-        ><span>SCATTERHOARD © <span id="year">2026</span></span>
+        <span>A little woodland rivalry.</span><span>SCATTERHOARD © <span id="year">2026</span></span>
       </footer>
     </div>
 
@@ -402,33 +375,30 @@
         <div>
           <span>01</span>
           <p>
-            <strong>Scurry freely.</strong> Red uses WASD and Space to dig. Ash
-            uses arrows and Enter. Online, either set controls your own
-            squirrel. Against AI, you control Red.
+            <strong>Scurry freely.</strong> Local human vs human: Red uses WASD and Space to dig; Ash uses arrow keys and Enter. Against AI, either set controls Red: WASD or arrow keys to move, and Space or Enter to dig. Online, either set controls your assigned squirrel. On mobile, use the joystick and Dig button.
           </p>
         </div>
         <div>
           <span>02</span>
           <p>
             <strong>Keep your stash secret.</strong> Carry one acorn at a time.
-            Stand still and dig to bury it. The invisible 30 × 10 grid keeps one
-            acorn per spot, with no marks left behind.
+            Stand still and dig to bury it. The acorn stays where it was buried, including between rounds, until it is dug up or taken by a crow.
           </p>
         </div>
         <div>
           <span>03</span>
           <p id="stash-instructions">
-            <strong>Guess. Dig. Recover.</strong> Dig with empty paws to search.
-            Find any buried acorn, including your own, carry it home, and bury
-            it again. Its old patch loses a point as soon as it’s dug up.
+            <strong>Guess. Dig. Recover.</strong> Dig with empty paws to search for any buried acorn, including your own.
+            <br /><br /><strong>Arcade:</strong> Buried acorns score for the half of the field where they are hidden, regardless of who buried them. Digging one up removes that half’s point. Carry it to your half and bury it again to score for your side. The most acorns buried on your half after three rounds wins.
+            <br /><br /><strong>Survival:</strong> Buried acorns are reserves, not points. Dig up a reserve and return it to your own basket to help reach five deliveries that round. Once you have delivered five, bury extra acorns for future rounds as drops become scarce. Falling short of five deliveries eliminates you; the other squirrel can keep playing alone.
           </p>
         </div>
         <div>
           <span>04</span>
           <p>
-            <strong>A fresh run each round.</strong> Return to your tree, then watch the clearing fade to black and back to daylight before the next three-second countdown. In Survival, squirrels reel their baskets into the canopy before the fade. Loose acorns and acorns in paws clear between rounds; buried stashes remain. Two mirrored 3 × 3 rocks and two 2 × 2 stumps per patch block your path. Leaves and grass are only scenery.
+            <strong>Between rounds.</strong> Loose acorns and acorns in paws clear between rounds; buried stashes remain.
             <br /><br /><strong>The forest has surprises.</strong> Every completed search
-            has a 10% powerup chance: three extra acorns, six seconds of speed,
+            has a chance of a powerup: three extra acorns, six seconds of speed,
             a helpful crow, six seconds of slowdown, or a crow stealing from
             your own patch.
           </p>

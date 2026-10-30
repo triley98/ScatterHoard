@@ -60,7 +60,6 @@ let helpPreviousPhase = null;
 let previousScores = [0, 0];
 let pendingRestart = false;
 const arcadeHelp = {
-  stash: $('stash-instructions').innerHTML,
   note: document.querySelector('.help-note').textContent,
 };
 let helpMode = null;
@@ -353,7 +352,7 @@ window.addEventListener('keydown', (event) => {
       if (event.code === 'Space' || event.code === 'Enter') onlineDig = true;
     } else {
       if (event.code === 'Space') game.requestDig(0);
-      if (event.code === 'Enter' && matchKind !== 'ai') game.requestDig(1);
+      if (event.code === 'Enter') game.requestDig(matchKind === 'ai' ? 0 : 1);
     }
   }
 });
@@ -383,7 +382,7 @@ const touchControls = new TouchControls(document.querySelector('.touch-controls'
 });
 
 function inputs() {
-  return [
+  const controls = [
     {
       x: Number(keys.has('KeyD')) - Number(keys.has('KeyA')),
       z: Number(keys.has('KeyS')) - Number(keys.has('KeyW')),
@@ -396,6 +395,14 @@ function inputs() {
     x: Math.max(-1, Math.min(1, input.x + touchControls.vectors[id].x)),
     z: Math.max(-1, Math.min(1, input.z + touchControls.vectors[id].z)),
   }));
+  if (matchKind === 'ai') {
+    controls[0] = {
+      x: Math.max(-1, Math.min(1, controls[0].x + controls[1].x)),
+      z: Math.max(-1, Math.min(1, controls[0].z + controls[1].z)),
+    };
+    controls[1] = {x:0, z:0};
+  }
+  return controls;
 }
 
 function handleEvents(events = game.drainEvents()) {
@@ -452,7 +459,7 @@ function resetToLocal() {
   for (const dialog of dialogs) if (dialog.open) dialog.close();
   $('room-bar').hidden = true;
   badges.clear();
-  $('connection-status').textContent = 'Two squirrels. One screen.';
+  $('connection-status').textContent = '';
   $('local-mode').classList.add('active');
   $('online-mode').classList.remove('active');
   $('local-mode').setAttribute('aria-pressed', 'true');
@@ -761,9 +768,6 @@ function syncUI() {
   $('round-progress').hidden = survival;
   $('survival-help').hidden = !survival;
   if (helpMode !== game.mode) {
-    $('stash-instructions').innerHTML = survival
-      ? '<strong>Guess. Dig. Recover.</strong> Dig empty-handed to recover any buried acorn, including your own. Bring it to your tree while you still need deliveries, or rebury it as a reserve. Stashes do not earn points in Survival.'
-      : arcadeHelp.stash;
     document.querySelector('.help-note').textContent = survival
       ? 'The same board carries across endless one-minute rounds. Five deliveries keeps a squirrel in the game; missing the goal eliminates it. The other squirrel continues alone. More rounds survived wins; elimination in the same round is a draw. Both players ready up for a new online run.'
       : arcadeHelp.note;
@@ -773,13 +777,19 @@ function syncUI() {
   document.querySelector('.grey-controls .control-player strong').textContent = matchKind === 'ai' ? 'Ash is the AI.' : 'You’re Ash.';
   document.querySelector('.grey-controls .control-inputs').hidden = matchKind === 'ai';
   $('ai-controls-note').hidden = matchKind !== 'ai';
+  $('human-controls-note').hidden = matchKind !== 'ai';
+  for (const label of document.querySelectorAll('.territory-label')) label.hidden = survival;
+  $('game-canvas').setAttribute('aria-label', matchKind === 'ai'
+    ? 'Game field. You control Red with WASD or arrow keys; dig with Space or Enter. Ash is the computer.'
+    : online ? 'Game field. Either keyboard control set controls your assigned squirrel.'
+    : 'Game field. Red uses WASD and Space; Ash uses arrow keys and Enter.');
   for (const [kind, id] of [['local','local-mode'], ['ai','ai-mode'], ['online','online-mode']]) {
     $(id).classList.toggle('active', matchKind === kind);
     $(id).setAttribute('aria-pressed', String(matchKind === kind));
   }
-  if (!online) $('connection-status').textContent = matchKind === 'ai' ? 'You’re Red. Ash is the computer.' : 'Two squirrels. One screen.';
+  $('connection-status').hidden = !online;
+  if (!online) $('connection-status').textContent = '';
   $('lobby-mode-description').textContent = `Host ${selectedMode === 'survival' ? 'Survival' : 'Arcade'} and share its six-character code, or join a friend’s room. You’re Red; your friend plays Ash. The host chooses the game mode.`;
-  document.querySelectorAll('.round-facts b')[1].textContent = survival ? '∞' : '03';
   document.querySelector('.quick-rules p').textContent = survival
     ? 'Bring five acorns to the basket at your own tree each round. Bury extras for future rounds. Miss the goal and you’re out; the other squirrel keeps going.'
     : 'Bury acorns on your half and remember your hiding spots. Dig empty-handed to steal any stash — or uncover a surprise.';
