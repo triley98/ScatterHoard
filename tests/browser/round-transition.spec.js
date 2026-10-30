@@ -114,7 +114,7 @@ test('held dig keys never scroll or activate results, and fades finish before th
 test('keyboard activation and typing still work in menus', async ({ page }) => {
   await page.goto('/');
   await chooseGame(page);
-  await page.getByRole('button', { name: 'How to play' }).focus();
+  await page.getByRole('button', { name: 'How to Play' }).focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('#help-dialog')).toBeVisible();
   await page.getByRole('button', { name: 'Got it. Let’s go.' }).focus();

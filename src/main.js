@@ -103,9 +103,9 @@ function openMenu() {
   $('menu-button').hidden = true;
   $('game-mode-options').hidden = false;
   $('match-options').hidden = true;
-  $('menu-title').innerHTML = 'The woods are calling.<br><em>Bring a friend.</em>';
+  $('menu-title').innerHTML = 'A little<br> <em>woodland rivalry</em>';
   $('main-menu').classList.remove('choosing-match');
-  $('menu-description').textContent = 'Collect a little. Hide a lot. See who makes it through winter.';
+  $('menu-description').textContent = 'Small paws. Big plans.';
   document.querySelector('[data-game-mode="arcade"]').focus({preventScroll:true});
 }
 

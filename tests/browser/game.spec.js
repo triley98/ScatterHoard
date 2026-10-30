@@ -31,7 +31,7 @@ test('a real browser can render, collect, bury, pause, finish, and rematch', asy
   await expect(page.locator('#renderer-error')).toBeHidden();
   await expect(page.locator('#clock')).toHaveText('01:00');
 
-  await page.getByRole('button', { name: 'How to play' }).click();
+  await page.getByRole('button', { name: 'How to Play' }).click();
   await expect(
     page.getByRole('dialog', { name: 'Make yourself at hoard.' }),
   ).toBeVisible();
@@ -106,7 +106,7 @@ test('a real browser can render, collect, bury, pause, finish, and rematch', asy
   await advance(page, 5000);
   await expect(page.locator('#clock')).toHaveText(pausedTime);
   await page.getByRole('button', { name: 'Back to the clearing' }).click();
-  await page.getByRole('button', { name: 'How to play' }).click();
+  await page.getByRole('button', { name: 'How to Play' }).click();
   const helpTime = await page.locator('#clock').textContent();
   await advance(page, 2000);
   await expect(page.locator('#clock')).toHaveText(helpTime);
@@ -154,7 +154,7 @@ test('the layout fits a narrow screen and sound and help controls work', async (
   await expect(
     page.getByRole('button', { name: 'Turn sound on' }),
   ).toHaveAttribute('aria-pressed', 'false');
-  await page.getByRole('button', { name: 'How to play' }).click();
+  await page.getByRole('button', { name: 'How to Play' }).click();
   await expect(page.locator('#help-dialog')).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Close instructions' }),

@@ -81,7 +81,7 @@ for (const mode of ['arcade', 'survival']) test(`either keyboard set moves and d
   expect(speed).toBeLessThanOrEqual(7);
   await page.keyboard.up('d'); await page.keyboard.up('ArrowRight');
 
-  await page.getByRole('button', { name: 'How to play' }).click();
+  await page.getByRole('button', { name: 'How to Play' }).click();
   const guide = await page.locator('#help-dialog').innerText();
   expect(guide).toMatch(/(?:against|versus)\s+(?:the\s+)?AI[\s\S]*?either[\s\S]*?Red/i);
   expect(errors).toEqual([]);

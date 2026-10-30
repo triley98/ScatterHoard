@@ -12,7 +12,11 @@ test('Into the Woods settings work from the menu and pause and resume a local ma
   await page.clock.install({time:new Date('2026-10-25T00:00:00Z')});
   await page.goto('/');
   await page.clock.pauseAt(new Date('2026-10-25T00:10:00Z'));
-  await expect(page.locator('#menu-title')).toContainText('The woods are calling.');
+  await expect(page.locator('#menu-title')).toHaveText('A little woodland rivalry');
+  await expect(page.locator('#menu-description')).toHaveText('Small paws. Big plans.');
+  await expect(page.locator('#main-menu > .eyebrow')).toHaveCount(0);
+  await expect(page.locator('footer')).not.toContainText('woodland rivalry');
+  await expect(page.locator('#help-button')).toContainText('How to Play');
   await page.screenshot({path:info.outputPath('woods-desktop.png'),fullPage:true});
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await page.locator('#settings-sound').check();
@@ -23,7 +27,14 @@ test('Into the Woods settings work from the menu and pause and resume a local ma
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:info.outputPath('woods-mobile.png'),fullPage:true});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);
+  await page.getByRole('button',{name:'How to Play'}).click();
+  expect(await page.locator('#help-dialog .instructions p').first().evaluate(el=>getComputedStyle(el).fontSize)).toBe('16px');
+  expect(await page.locator('#help-dialog .help-note').evaluate(el=>getComputedStyle(el).fontSize)).toBe('14px');
+  expect(await page.locator('#help-dialog').evaluate(el=>el.scrollWidth<=el.clientWidth)).toBe(true);
+  await page.screenshot({path:info.outputPath('readable-guide-mobile.png')});
+  await page.getByRole('button',{name:'Close instructions'}).click();
   await chooseGame(page,'survival');
+  await expect(page.locator('#menu-button')).toHaveText('Main Menu');
   await page.getByRole('button',{name:'Let’s forage'}).click();
   for(let i=0;i<16;i++)await page.clock.fastForward(200);
   await expect.poll(()=>page.evaluate(()=>window.fixture.game.phase)).toBe('playing');
@@ -35,5 +46,8 @@ test('Into the Woods settings work from the menu and pause and resume a local ma
   await page.getByRole('button',{name:'Close settings',exact:true}).click();
   await page.clock.fastForward(50);
   await expect.poll(()=>page.evaluate(()=>window.fixture.game.phase)).toBe('playing');
+  await page.locator('#menu-button').click();
+  await expect(page.locator('#menu-title')).toHaveText('A little woodland rivalry');
+  await expect(page.locator('#menu-description')).toHaveText('Small paws. Big plans.');
   expect(errors).toEqual([]);
 });

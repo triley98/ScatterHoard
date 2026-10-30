@@ -33,7 +33,7 @@ test('field captions and guide copy stay correct while switching between Surviva
       else await expect(page.locator(label)).toBeVisible();
     }
     if(mode==='survival')await page.locator('#arena').screenshot({path:info.outputPath('survival-field-without-labels.png')});
-    await page.getByRole('button',{name:'How to play'}).click();
+    await page.getByRole('button',{name:'How to Play'}).click();
     const guide=page.locator('#help-dialog');
     await expect(guide).toContainText('The acorn stays where it was buried');
     await expect(page.locator('#stash-instructions')).toContainText('Arcade:');

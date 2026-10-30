@@ -1999,3 +1999,13 @@ body.into-the-woods:before{content:'';position:fixed;inset:0;z-index:-1;backgrou
 /* Keep the remaining drop indicator at the right after removing field captions. */
 .arena-topline { justify-content: flex-end; }
 .brand-name { white-space: nowrap; }
+
+/* Readable instructions at both desktop and phone sizes. */
+#help-dialog { max-height: calc(100dvh - 32px); overflow-y: auto; }
+#help-dialog .instructions p, #help-dialog > p { font-size: 16px; line-height: 1.75; }
+#help-dialog .instructions strong { font-size: 17px; }
+#help-dialog .instructions > div > span { font-size: 13px; }
+#help-dialog .help-note { font-size: 14px; line-height: 1.75; }
+#help-dialog .badge-legend > span { font-size: 13px; }
+#help-dialog .dialog-primary { font-size: 15px; }
+footer > .copyright:first-child:last-child { font-family: inherit; font-style: normal; font-size: 7px; margin-left: auto; }
