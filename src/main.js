@@ -106,6 +106,7 @@ function openMenu() {
   $('ai-difficulty-options').hidden = true;
   $('ai-difficulty-back').hidden = true;
   $('menu-title').innerHTML = 'A little<br> <em>woodland rivalry</em>';
+  $('menu-description').hidden = false;
   $('main-menu').classList.remove('choosing-match');
   $('menu-description').textContent = 'Small paws. Big plans.';
   document.querySelector('[data-game-mode="arcade"]').focus({preventScroll:true});
@@ -121,6 +122,7 @@ for (const button of document.querySelectorAll('[data-game-mode]'))
     $('ai-difficulty-options').hidden = true;
     $('ai-difficulty-back').hidden = true;
     $('main-menu').classList.add('choosing-match');
+    $('menu-description').hidden = false;
     $('menu-title').innerHTML = `${selectedMode === 'survival' ? 'Survival' : 'Arcade'}.<br><em>Who’s playing?</em>`;
     $('menu-description').textContent = selectedMode === 'survival'
       ? 'Deliver five acorns to your own tree each round. Stay in as long as you can.'
@@ -143,7 +145,7 @@ function chooseMatch(kind) {
     $('ai-difficulty-options').hidden = false;
     $('ai-difficulty-back').hidden = false;
     $('menu-title').innerHTML = 'Choose a<br><em>difficulty</em>';
-    $('menu-description').textContent = 'How much should Ash remember?';
+    $('menu-description').hidden = true;
     document.querySelector('[data-ai-difficulty="easy"]').focus({preventScroll:true});
     return;
   }
@@ -157,6 +159,7 @@ $('ai-difficulty-back').addEventListener('click', () => {
   $('ai-difficulty-options').hidden = true;
   $('ai-difficulty-back').hidden = true;
   $('match-options').hidden = false;
+  $('menu-description').hidden = false;
   $('menu-title').innerHTML = `${selectedMode === 'survival' ? 'Survival' : 'Arcade'}.<br><em>Who’s playing?</em>`;
   $('menu-description').textContent = selectedMode === 'survival'
     ? 'Deliver five acorns to your own tree each round. Stay in as long as you can.'
