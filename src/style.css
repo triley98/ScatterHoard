@@ -1923,6 +1923,9 @@ dialog > p {
 .main-menu > p { color: #6c7869; max-width: 620px; line-height: 1.7; margin-bottom: 30px; }
 .menu-options, .match-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .match-choices { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 25px; }
+.ai-difficulty-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; max-width: 540px; margin: 0 auto 20px; }
+.difficulty-button { border: 1px solid #d6ddc9; border-radius: 12px; padding: 18px 12px; background: #fcfaf1; color: var(--ink); font: inherit; font-size: 18px; font-weight: 700; cursor: pointer; }
+.difficulty-button:hover, .difficulty-button:focus-visible { border-color: #7b9461; background: #edf0e0; }
 .menu-card { border: 1px solid var(--line); border-radius: 15px; padding: 30px; background: #faf9f1; color: var(--ink); text-align: left; display: flex; flex-direction: column; gap: 22px; cursor: pointer; }
 .menu-card strong { display: flex; align-items: center; justify-content: space-between; font-size: 28px; letter-spacing: -1px; }
 .menu-card strong span { color: var(--orange); font-size: 30px; }
@@ -1936,6 +1939,8 @@ dialog > p {
 @media (max-width: 700px) {
   .main-menu { padding: 40px 0; }
   .menu-options, .match-choices { grid-template-columns: 1fr; gap: 14px; }
+  .ai-difficulty-options { gap: 8px; margin-bottom: 18px; }
+  .difficulty-button { padding: 16px 8px; font-size: 15px; }
   .menu-card { padding: 23px; gap: 14px; }
   .play-modes { flex-wrap: wrap; gap: 12px; }
   .play-modes > div { flex-wrap: wrap; }

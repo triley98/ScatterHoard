@@ -6,15 +6,42 @@ const center = ({col, row}) => ({
   z: (row + 0.5) * RULES.depth / RULES.gridRows,
 });
 const distance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
-const MEMORY_ODDS = Object.freeze({
-  opponent: { forgotten: 0.2, uncertain: 0.4 },
-  own: { forgotten: 0.05, uncertain: 0.15 },
+const MEMORY_PROFILES = Object.freeze({
+  easy: Object.freeze({
+    opponent: Object.freeze({ forgotten: 0.5, uncertain: 0.5, area: 3 }),
+    own: Object.freeze({ forgotten: 0.5, uncertain: 0.5, area: 2 }),
+  }),
+  medium: Object.freeze({
+    opponent: Object.freeze({ forgotten: 0.35, uncertain: 0.4, area: 2 }),
+    own: Object.freeze({ forgotten: 0.25, uncertain: 0.25, area: 2 }),
+  }),
+  hard: Object.freeze({
+    opponent: Object.freeze({ forgotten: 0.2, uncertain: 0.4, area: 2 }),
+    own: Object.freeze({ forgotten: 0.05, uncertain: 0.15, area: 2 }),
+  }),
 });
+
+function clueCells(cell, size) {
+  const start = (position, length) => size % 2
+    ? Math.min(Math.max(0, position - Math.floor(size / 2)), length - size)
+    : Math.min(Math.floor(position / size) * size, length - size);
+  const col = start(cell.col, RULES.gridColumns);
+  const row = start(cell.row, RULES.gridRows);
+  return Array.from({length:size * size}, (_, index) => {
+    const candidate = {col:col + index % size, row:row + Math.floor(index / size)};
+    return {...center(candidate), key:cellKey(candidate)};
+  });
+}
 
 /** A local opponent with public observations and memory, never the burial map. */
 export class SquirrelAI {
-  constructor(id = 1, { random = Math.random } = {}) {
-    this.id = id; this.random = random; this.reset();
+  constructor(id = 1, { random = Math.random, difficulty = 'hard' } = {}) {
+    this.id = id; this.random = random; this.setDifficulty(difficulty); this.reset();
+  }
+  setDifficulty(difficulty) {
+    if (!Object.hasOwn(MEMORY_PROFILES, difficulty))
+      throw new Error('Choose Easy, Medium, or Hard.');
+    this.difficulty = difficulty;
   }
   reset() {
     this.memory = new Map(); this.goal = null; this.path = [];
@@ -26,19 +53,15 @@ export class SquirrelAI {
     if (!player) return;
     const cell = cellAt(player.x, player.z), key = cellKey(cell);
     if (event.type === 'bury') {
-      const odds = MEMORY_ODDS[player.id === this.id ? 'own' : 'opponent'];
+      const odds = MEMORY_PROFILES[this.difficulty][player.id === this.id ? 'own' : 'opponent'];
       const roll = this.random();
       if (roll >= odds.forgotten) {
         const uncertain = roll < odds.forgotten + odds.uncertain;
         if (uncertain) {
-          const col = Math.floor(cell.col / 2) * 2, row = Math.floor(cell.row / 2) * 2;
-          const cells = [0,1].flatMap(dz => [0,1].map(dx => {
-            const candidate = {col:col + dx, row:row + dz};
-            return {...center(candidate), key:cellKey(candidate)};
-          }));
-          // Keep only the four possible cells, with no trace of which one was
+          const cells = clueCells(cell, odds.area);
+          // Keep only the possible cells, with no trace of which one was
           // actually observed. Search order comes from the bot's own position.
-          this.memory.set(`area:${col}:${row}:${player.id}`, {cells, player:player.id});
+          this.memory.set(`area:${cells[0].key}:${player.id}`, {cells, player:player.id});
         } else this.rememberExact(cell, player.id);
       }
     }

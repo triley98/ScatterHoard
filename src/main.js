@@ -103,6 +103,8 @@ function openMenu() {
   $('menu-button').hidden = true;
   $('game-mode-options').hidden = false;
   $('match-options').hidden = true;
+  $('ai-difficulty-options').hidden = true;
+  $('ai-difficulty-back').hidden = true;
   $('menu-title').innerHTML = 'A little<br> <em>woodland rivalry</em>';
   $('main-menu').classList.remove('choosing-match');
   $('menu-description').textContent = 'Small paws. Big plans.';
@@ -116,6 +118,8 @@ for (const button of document.querySelectorAll('[data-game-mode]'))
     syncUI();
     $('game-mode-options').hidden = true;
     $('match-options').hidden = false;
+    $('ai-difficulty-options').hidden = true;
+    $('ai-difficulty-back').hidden = true;
     $('main-menu').classList.add('choosing-match');
     $('menu-title').innerHTML = `${selectedMode === 'survival' ? 'Survival' : 'Arcade'}.<br><em>Who’s playing?</em>`;
     $('menu-description').textContent = selectedMode === 'survival'
@@ -123,17 +127,42 @@ for (const button of document.querySelectorAll('[data-game-mode]'))
       : 'Three one-minute rounds. Most buried acorns wins.';
     document.querySelector('[data-match="local"]').focus({preventScroll:true});
   });
-function chooseMatch(kind) {
+function launchMatch(kind, difficulty = 'hard') {
   resetToLocal();
   matchKind = kind;
+  if (kind === 'ai') opponent.setDifficulty(difficulty);
   opponent.reset();
   showGame();
   syncUI();
   if (kind === 'online') $('online-mode').click();
   else $('start-button').focus({preventScroll:true});
 }
+function chooseMatch(kind) {
+  if (kind === 'ai') {
+    $('match-options').hidden = true;
+    $('ai-difficulty-options').hidden = false;
+    $('ai-difficulty-back').hidden = false;
+    $('menu-title').innerHTML = 'Choose a<br><em>difficulty</em>';
+    $('menu-description').textContent = 'How much should Ash remember?';
+    document.querySelector('[data-ai-difficulty="easy"]').focus({preventScroll:true});
+    return;
+  }
+  launchMatch(kind);
+}
 for (const button of document.querySelectorAll('[data-match]'))
   button.addEventListener('click', () => chooseMatch(button.dataset.match));
+for (const button of document.querySelectorAll('[data-ai-difficulty]'))
+  button.addEventListener('click', () => launchMatch('ai', button.dataset.aiDifficulty));
+$('ai-difficulty-back').addEventListener('click', () => {
+  $('ai-difficulty-options').hidden = true;
+  $('ai-difficulty-back').hidden = true;
+  $('match-options').hidden = false;
+  $('menu-title').innerHTML = `${selectedMode === 'survival' ? 'Survival' : 'Arcade'}.<br><em>Who’s playing?</em>`;
+  $('menu-description').textContent = selectedMode === 'survival'
+    ? 'Deliver five acorns to your own tree each round. Stay in as long as you can.'
+    : 'Three one-minute rounds. Most buried acorns wins.';
+  document.querySelector('[data-match="ai"]').focus({preventScroll:true});
+});
 $('menu-back').addEventListener('click', openMenu);
 $('menu-button').addEventListener('click', openMenu);
 
