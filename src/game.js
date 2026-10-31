@@ -385,11 +385,10 @@ export class Game {
         if (!overlapsRock(player.x, oldZ, rock)) continue;
         const gap = Math.max(rock.z - oldZ, oldZ - rock.z - rock.depth, 0);
         const reach = Math.sqrt(Math.max(0, RULES.playerRadius ** 2 - gap ** 2));
-        // Choose the side the player approached from. Position alone fails
-        // at corners, where oldX can already sit inside the rock's span.
-        const fromLeft = player.x > oldX ||
-          (player.x === oldX && oldX < rock.x + rock.width / 2);
-        player.x = fromLeft ? rock.x - reach : rock.x + rock.width + reach;
+        // Pick the nearest safe side; at a corner the center may already be
+        // inside the obstacle's span, so direction can choose the far edge.
+        const left = rock.x - reach, right = rock.x + rock.width + reach;
+        player.x = Math.abs(player.x - left) <= Math.abs(player.x - right) ? left : right;
         player.vx = 0;
       }
       player.z = clamp(
@@ -401,9 +400,8 @@ export class Game {
         if (!overlapsRock(player.x, player.z, rock)) continue;
         const gap = Math.max(rock.x - player.x, player.x - rock.x - rock.width, 0);
         const reach = Math.sqrt(Math.max(0, RULES.playerRadius ** 2 - gap ** 2));
-        const fromTop = player.z > oldZ ||
-          (player.z === oldZ && oldZ < rock.z + rock.depth / 2);
-        player.z = fromTop ? rock.z - reach : rock.z + rock.depth + reach;
+        const top = rock.z - reach, bottom = rock.z + rock.depth + reach;
+        player.z = Math.abs(player.z - top) <= Math.abs(player.z - bottom) ? top : bottom;
         player.vz = 0;
       }
       if (magnitude > 0) player.facing = Math.atan2(x, z);
